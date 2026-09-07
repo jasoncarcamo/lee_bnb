@@ -1,5 +1,5 @@
 {
-  "name": "api-template",
+  "name": "lee_bnb",
   "version": "1.0.0",
   "description": "",
   "main": "./src/app/server.js",
@@ -22,12 +22,12 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "helmet": "^3.21.2",
-    "knex": "^0.20.4",
+    "knex": "^3.3.0",
     "morgan": "^1.9.1",
-    "pg": "^7.14.0"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.2",
-    "postgrator-cli": "^3.3.0"
+    "postgrator-cli": "^10.0.0"
   }
 }

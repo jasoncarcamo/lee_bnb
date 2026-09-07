@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS guest_conversation_access CASCADE;
