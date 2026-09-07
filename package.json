@@ -1,0 +1,33 @@
+{
+  "name": "api-template",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./src/app/server.js",
+  "scripts": {
+    "start": "node ./src/app/server.js",
+    "dev": "nodemon ./src/app/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-migrate": "postgrator --config ./test-postgrate-config.js",
+    "prod-migrate": "postgrator --config ./prod-postgrate-config.js"
+  },
+  "engines": {
+    "node": "10.16.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "helmet": "^3.21.2",
+    "knex": "^0.20.4",
+    "morgan": "^1.9.1",
+    "pg": "^7.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.2",
+    "postgrator-cli": "^3.3.0"
+  }
+}
