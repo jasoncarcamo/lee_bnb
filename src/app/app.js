@@ -4,10 +4,13 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const {NODE_ENV} = require("../../config");
+const registerRouter = require("../routes/registerRouter");
 
 app.use(morgan("tiny"));
 app.use(cors());
 app.use(helmet());
+
+app.use("/api", registerRouter);
 
 
 //Middleware error handler

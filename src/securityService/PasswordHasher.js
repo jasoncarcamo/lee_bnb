@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 
-const Passwordhasher = {
+const PasswordHasher = {
     hashPassword(password){
         return bcrypt.hash(password, 12);
     },
@@ -9,4 +9,4 @@ const Passwordhasher = {
     }
 };
 
-module.exports = Passwordhasher;
+module.exports = PasswordHasher;
