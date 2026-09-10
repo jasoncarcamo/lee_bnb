@@ -1,8 +1,8 @@
 const express = require("express");
 const LogInRouter = express.Router();
 
-const TokenService = require("../securityServices/tokenService");
-const PasswordHasher = require("../securityServices/passwordHasher");
+const TokenService = require("../securityService/TokenService");
+const PasswordHasher = require("../securityService/PasswordHasher");
 const AdminAccountService = require("../dbService/adminAccountService");
 
 
