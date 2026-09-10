@@ -25,6 +25,7 @@ const PropertyAmenityService = {
     },
 
     addAmenityToProperty(db, property_id, amenity_id) {
+        console.log("Adding amenity to property:", property_id, amenity_id );
         return db
             .insert({
                 property_id,

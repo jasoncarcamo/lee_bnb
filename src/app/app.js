@@ -10,6 +10,10 @@ const loginRouter = require("../routes/loginRouter");
 const propertyRouter = require("../routes/propertyRouter");
 const propertyPhotoRouter = require("../routes/propertyPhotoRouter");
 
+const AmenityRouter = require("../routes/amenityRouter");
+const PropertyAmenityRouter = require("../routes/propertyAmenityRouter");
+
+
 app.use(morgan("tiny"));
 app.use(cors());
 app.use(helmet());
@@ -19,6 +23,9 @@ app.use("/api", loginRouter);
 
 app.use("/api/properties", propertyRouter);
 app.use("/api/property-photos", propertyPhotoRouter);
+
+app.use("/api/amenities", AmenityRouter);
+app.use("/api/property-amenities", PropertyAmenityRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {
