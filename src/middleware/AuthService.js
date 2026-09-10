@@ -1,4 +1,4 @@
-const TokenService = require("../securityServices/tokenService");
+const TokenService = require("../securityService/TokenService");
 const AdminAccountService = require("../dbService/adminAccountService");
 
 
