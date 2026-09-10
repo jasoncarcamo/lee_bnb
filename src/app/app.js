@@ -8,6 +8,7 @@ const registerRouter = require("../routes/registerRouter");
 const loginRouter = require("../routes/loginRouter");
 
 const propertyRouter = require("../routes/propertyRouter");
+const propertyPhotoRouter = require("../routes/propertyPhotoRouter");
 
 app.use(morgan("tiny"));
 app.use(cors());
@@ -17,6 +18,7 @@ app.use("/api", registerRouter);
 app.use("/api", loginRouter);
 
 app.use("/api/properties", propertyRouter);
+app.use("/api/property-photos", propertyPhotoRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {
