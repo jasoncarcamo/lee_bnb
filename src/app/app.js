@@ -16,6 +16,8 @@ const PropertyAmenityRouter = require("../routes/propertyAmenityRouter");
 const propertyAvailabilityRouter = require("../routes/propertyAvailabilityRouter");
 const propertyPricingRouter = require("../routes/propertyPricingRouter");
 
+const guestRouter = require("../routes/guestRouter");
+
 
 app.use(morgan("tiny"));
 app.use(cors());
@@ -31,6 +33,8 @@ app.use("/api/amenities", AmenityRouter);
 app.use("/api/property-amenities", PropertyAmenityRouter);
 app.use("/api/property-availability", propertyAvailabilityRouter);
 app.use("/api/property-pricing", propertyPricingRouter);
+
+app.use("/api/guests", guestRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {
