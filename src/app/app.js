@@ -17,6 +17,7 @@ const propertyAvailabilityRouter = require("../routes/propertyAvailabilityRouter
 const propertyPricingRouter = require("../routes/propertyPricingRouter");
 
 const guestRouter = require("../routes/guestRouter");
+const reservationRouter = require("../routes/reservationsRouter");
 
 
 app.use(morgan("tiny"));
@@ -35,6 +36,7 @@ app.use("/api/property-availability", propertyAvailabilityRouter);
 app.use("/api/property-pricing", propertyPricingRouter);
 
 app.use("/api/guests", guestRouter);
+app.use("/api/reservations", reservationRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {
