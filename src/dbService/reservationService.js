@@ -48,12 +48,12 @@ const ReservationService = {
 
     getReservationsBetweenDates(db, property_id, check_in, check_out) {
         return db
-            .select("*")
-            .from("reservations")
-            .where({ property_id })
-            .whereIn("status", ["pending", "confirmed"])
-            .where("check_in", "<", check_out)
-            .where("check_out", ">", check_in);
+            .select("*") 
+            .from("reservations") 
+            .where({ property_id }) 
+            .whereIn( "status", ["pending", "confirmed"] ) 
+            .where("check_in", "<=", check_out) 
+            .where("check_out", ">=", check_in);
     },
 
     createReservation(db, newReservation) {

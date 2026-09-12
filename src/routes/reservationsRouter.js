@@ -4,7 +4,7 @@ const ReservationRouter = express.Router();
 const ReservationService = require("../dbService/reservationService");
 const PropertyService = require("../dbService/propertyService");
 const GuestService = require("../dbService/guestService");
-
+const ReservationValidationService = require("../dbService/reservationValidationService");
 const { requireAuth } = require("../middleware/jwtAuth");
 
 
@@ -286,6 +286,7 @@ ReservationRouter
     );
 
 
+
 /*
     CREATE RESERVATION
 */
@@ -299,154 +300,221 @@ ReservationRouter
             const {
                 property_id,
                 guest_id,
-                confirmation_code,
                 check_in,
                 check_out,
                 guests_count,
-                nights,
-                nightly_subtotal,
-                cleaning_fee,
-                service_fee,
-                taxes,
-                discount,
-                total_price,
-                currency,
-                status,
                 special_requests
             } = req.body;
 
 
-            const newReservation = {
+            const reservationData = {
                 property_id,
                 guest_id,
-                confirmation_code,
                 check_in,
                 check_out,
                 guests_count,
-                nights,
-                nightly_subtotal,
-                cleaning_fee,
-                service_fee,
-                taxes,
-                discount,
-                total_price,
-                currency,
-                status,
                 special_requests
             };
 
 
-            const requiredFields = [
-                "property_id",
-                "guest_id",
-                "confirmation_code",
-                "check_in",
-                "check_out",
-                "guests_count",
-                "nights",
-                "nightly_subtotal",
-                "total_price"
-            ];
+            ReservationValidationService
+                .validateProperty(
+                    req.app.get("db"),
+                    property_id
+                )
+                .then(propertyResult => {
 
+                    if(!propertyResult.valid){
 
-            for(const field of requiredFields){
-
-                if(
-                    newReservation[field] === undefined ||
-                    newReservation[field] === null ||
-                    newReservation[field] === ""
-                ){
-
-                    return res.status(400).json({
-                        error: `Missing ${field} in body request`
-                    });
-
-                };
-
-            };
-
-
-            /*
-                VERIFY PROPERTY
-            */
-            PropertyService.getPropertyById(
-                req.app.get("db"),
-                property_id
-            )
-                .then(property => {
-
-                    if(!property){
-
-                        return res.status(404).json({
-                            error: "Property not found"
+                        return res.status(400).json({
+                            error: propertyResult.error
                         });
 
                     };
 
 
-                    /*
-                        VERIFY GUEST
-                    */
-                    return GuestService.getGuestById(
-                        req.app.get("db"),
-                        guest_id
-                    );
+                    const property =
+                        propertyResult.property;
 
-                })
-                .then(guest => {
 
-                    if(!guest){
+                    return ReservationValidationService
+                        .validateGuest(
+                            req.app.get("db"),
+                            guest_id
+                        )
+                        .then(guestResult => {
 
-                        return res.status(404).json({
-                            error: "Guest not found"
+                            if(!guestResult.valid){
+
+                                return res.status(400).json({
+                                    error: guestResult.error
+                                });
+
+                            };
+
+
+                            const dateResult =
+                                ReservationValidationService
+                                    .validateDates(
+                                        check_in,
+                                        check_out
+                                    );
+
+
+                            if(!dateResult.valid){
+
+                                return res.status(400).json({
+                                    error: dateResult.error
+                                });
+
+                            };
+
+
+                            const guestCountResult =
+                                ReservationValidationService
+                                    .validateGuestCount(
+                                        guests_count,
+                                        property
+                                    );
+
+
+                            if(!guestCountResult.valid){
+
+                                return res.status(400).json({
+                                    error: guestCountResult.error
+                                });
+
+                            };
+
+
+                            return ReservationValidationService
+                                .checkExistingReservations(
+                                    req.app.get("db"),
+                                    property_id,
+                                    check_in,
+                                    check_out
+                                )
+                                .then(reservationResult => {
+
+                                    if(!reservationResult.valid){
+
+                                        return res.status(400).json({
+                                            error: reservationResult.error
+                                        });
+
+                                    };
+
+
+                                    return ReservationValidationService
+                                        .checkAvailability(
+                                            req.app.get("db"),
+                                            property_id,
+                                            check_in,
+                                            check_out
+                                        )
+                                        .then(availabilityResult => {
+
+                                            if(!availabilityResult.valid){
+
+                                                return res.status(400).json({
+                                                    error: availabilityResult.error
+                                                });
+
+                                            };
+                                            
+                                            const pricingData = {
+                                                ...reservationData,
+                                                property
+                                            };
+
+
+                                            return ReservationValidationService
+                                                .calculateReservationPricing(
+                                                    req.app.get("db"),
+                                                    pricingData
+                                                )
+                                                .then(pricingResult => {
+
+                                                    const total =
+                                                        ReservationValidationService
+                                                            .calculateReservationTotal(
+                                                                property,
+                                                                pricingResult
+                                                            );
+
+
+                                                    const confirmationCode =
+                                                        `RES-${Date.now()}`;
+
+
+                                                    const newReservation = {
+
+                                                        property_id,
+
+                                                        guest_id,
+
+                                                        confirmation_code:
+                                                            confirmationCode,
+
+                                                        check_in,
+
+                                                        check_out,
+
+                                                        guests_count,
+
+                                                        nights:
+                                                            pricingResult.nights,
+
+                                                        nightly_subtotal:
+                                                            total.nightly_subtotal,
+
+                                                        cleaning_fee:
+                                                            total.cleaning_fee,
+
+                                                        service_fee:
+                                                            total.service_fee,
+
+                                                        taxes:
+                                                            total.taxes,
+
+                                                        discount:
+                                                            total.discount,
+
+                                                        total_price:
+                                                            total.total_price,
+
+                                                        currency:
+                                                            property.currency,
+
+                                                        status:
+                                                            "pending",
+
+                                                        special_requests:
+                                                            special_requests || null
+
+                                                    };
+
+
+                                                    return ReservationService
+                                                        .createReservation(
+                                                            req.app.get("db"),
+                                                            newReservation
+                                                        )
+                                                        .then(reservation => {
+
+                                                            return res.status(201).json({
+                                                                reservation
+                                                            });
+
+                                                        });
+
+                                                });
+
+                                        });
+
+                                });
+
                         });
-
-                    };
-
-
-                    /*
-                        CHECK FOR DATE CONFLICT
-                    */
-                    return ReservationService.getReservationsBetweenDates(
-                        req.app.get("db"),
-                        property_id,
-                        check_in,
-                        check_out
-                    );
-
-                })
-                .then(existingReservations => {
-
-                    if(existingReservations.length > 0){
-
-                        return res.status(409).json({
-                            error: "Property is already reserved for some or all of these dates"
-                        });
-
-                    };
-
-
-                    /*
-                        CREATE RESERVATION
-                    */
-                    return ReservationService.createReservation(
-                        req.app.get("db"),
-                        newReservation
-                    );
-
-                })
-                .then(createdReservation => {
-
-                    if(!createdReservation){
-
-                        return;
-
-                    };
-
-
-                    return res.status(201).json({
-                        reservation: createdReservation
-                    });
 
                 })
                 .catch(error => {
