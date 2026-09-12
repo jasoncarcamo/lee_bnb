@@ -20,6 +20,8 @@ const guestRouter = require("../routes/guestRouter");
 const reservationRouter = require("../routes/reservationsRouter");
 const paymentRouter = require("../routes/paymentsRouter");
 const refundRouter = require("../routes/refundRouter");
+const conversationRouter = require("../routes/conversationRouter");
+const messageRouter = require("../routes/messageRouter");
 
 app.use(morgan("tiny"));
 app.use(cors());
@@ -40,6 +42,8 @@ app.use("/api/guests", guestRouter);
 app.use("/api/reservations", reservationRouter);
 app.use("/api/payments", paymentRouter);
 app.use("/api/refunds", refundRouter);
+app.use("/api/conversations", conversationRouter);
+app.use("/api/messages", messageRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {
