@@ -1,4 +1,4 @@
-CREATE TABLE guest_conversation_access (
+CREATE TABLE IF NOT EXISTS guest_conversation_access (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     guest_id UUID NOT NULL
         REFERENCES guests(id)
