@@ -2,8 +2,9 @@ const PropertyService = require("./propertyService");
 const GuestService = require("./guestService");
 const PropertyAvailabilityService = require("./propertyAvailabilityService");
 const PropertyPricingService = require("./propertyPricingService");
+const ReservationService = require("./reservationService");
 
-const ReservationService = {
+const ReservationValidationService = {
     validateProperty(db, property_id) {
 
     return PropertyService.getPropertyById(
@@ -441,4 +442,4 @@ const ReservationService = {
     }
 };
 
-module.exports = ReservationService;
+module.exports = ReservationValidationService;
