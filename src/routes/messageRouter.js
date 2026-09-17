@@ -4,9 +4,9 @@ const MessageRouter = express.Router();
 const MessageService = require("../dbService/messageService");
 const ConversationService = require("../dbService/conversationService");
 const GuestService = require("../dbService/guestService");
+const notificationService = require("../dbService/notificationService");
 
 const { requireAuth } = require("../middleware/jwtAuth");
-
 
 /*
     GET MESSAGES BY CONVERSATION
@@ -236,6 +236,35 @@ MessageRouter
                         },
                         conversation_id
                     )
+                        .then(() => {
+
+                            const newNotification = {
+                                type: "new_message",
+                                title: "New Message",
+                                message:
+                                    sender_type === "guest"
+                                        ? "A guest sent a new message."
+                                        : "A new message was sent.",
+                                property_id:
+                                    null,
+                                reservation_id:
+                                    null,
+                                conversation_id:
+                                    createdMessage.conversation_id,
+                                inquiry_id:
+                                    null,
+                                is_read:
+                                    false
+                            };
+
+
+                            return notificationService
+                                .createNotification(
+                                    req.app.get("db"),
+                                    newNotification
+                                );
+
+                        })
                         .then(() => {
 
                             return res.status(201).json({
