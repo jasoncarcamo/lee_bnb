@@ -2,10 +2,9 @@ const express = require("express");
 const ReservationRouter = express.Router();
 
 const ReservationService = require("../dbService/reservationService");
-const PropertyService = require("../dbService/propertyService");
-const GuestService = require("../dbService/guestService");
 const ReservationValidationService = require("../dbService/reservationValidationService");
 const { requireAuth } = require("../middleware/jwtAuth");
+const notificationService = require("../dbService/notificationService");
 
 
 /*
@@ -502,9 +501,36 @@ ReservationRouter
                                                         )
                                                         .then(reservation => {
 
-                                                            return res.status(201).json({
-                                                                reservation
-                                                            });
+                                                            const newNotification = {
+                                                                type: "new_reservation",
+                                                                title: "New Reservation",
+                                                                message:
+                                                                    `A new reservation was created with confirmation code ${reservation.confirmation_code}.`,
+                                                                property_id:
+                                                                    reservation.property_id,
+                                                                reservation_id:
+                                                                    reservation.id,
+                                                                conversation_id:
+                                                                    null,
+                                                                inquiry_id:
+                                                                    null,
+                                                                is_read:
+                                                                    false
+                                                            };
+
+
+                                                            return notificationService
+                                                                .createNotification(
+                                                                    req.app.get("db"),
+                                                                    newNotification
+                                                                )
+                                                                .then(() => {
+
+                                                                    return res.status(201).json({
+                                                                        reservation
+                                                                    });
+
+                                                                });
 
                                                         });
 
@@ -641,8 +667,45 @@ ReservationRouter
                     };
 
 
-                    return res.status(200).json({
-                        reservation
+                    const newNotification = {
+                        type: "reservation_cancelled",
+                        title: "Reservation Cancelled",
+                        message:
+                            `Reservation ${reservation.confirmation_code} was cancelled.`,
+                        property_id:
+                            reservation.property_id,
+                        reservation_id:
+                            reservation.id,
+                        conversation_id:
+                            null,
+                        inquiry_id:
+                            null,
+                        is_read:
+                            false
+                    };
+
+
+                    return notificationService
+                    .deleteNotificationByReservationIdAndType(
+                        req.app.get("db"),
+                        reservation.id,
+                        "new_reservation"
+                    )
+                    .then(() => {
+
+                        return notificationService
+                            .createNotification(
+                                req.app.get("db"),
+                                newNotification
+                            );
+
+                    })
+                    .then(() => {
+
+                        return res.status(200).json({
+                            reservation
+                        });
+
                     });
 
                 })

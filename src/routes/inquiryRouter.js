@@ -5,6 +5,7 @@ const InquiryService = require("../dbService/inquiryService");
 const PropertyService = require("../dbService/propertyService");
 
 const { requireAuth } = require("../middleware/jwtAuth");
+const notificationService = require("../dbService/notificationService");
 
 
 /*
@@ -143,7 +144,6 @@ InquiryRouter
         }
     );
 
-
 /*
     CREATE INQUIRY
 */
@@ -280,10 +280,11 @@ InquiryRouter
             */
             if(property_id){
 
-                return PropertyService.getPropertyById(
-                    req.app.get("db"),
-                    property_id
-                )
+                return PropertyService
+                    .getPropertyById(
+                        req.app.get("db"),
+                        property_id
+                    )
                     .then(property => {
 
                         if(!property){
@@ -295,24 +296,45 @@ InquiryRouter
                         };
 
 
-                        return InquiryService.createInquiry(
-                            req.app.get("db"),
-                            newInquiry
-                        );
+                        return InquiryService
+                            .createInquiry(
+                                req.app.get("db"),
+                                newInquiry
+                            )
+                            .then(inquiry => {
 
-                    })
-                    .then(inquiry => {
+                                const newNotification = {
+                                    type: "new_inquiry",
+                                    title: "New Inquiry",
+                                    message:
+                                        `${inquiry.first_name} submitted a new inquiry.`,
+                                    property_id:
+                                        inquiry.property_id,
+                                    reservation_id:
+                                        null,
+                                    conversation_id:
+                                        null,
+                                    inquiry_id:
+                                        inquiry.id,
+                                    is_read:
+                                        false
+                                };
 
-                        if(!inquiry){
 
-                            return;
+                                return notificationService
+                                    .createNotification(
+                                        req.app.get("db"),
+                                        newNotification
+                                    )
+                                    .then(() => {
 
-                        };
+                                        return res.status(201).json({
+                                            inquiry
+                                        });
 
+                                    });
 
-                        return res.status(201).json({
-                            inquiry
-                        });
+                            });
 
                     })
                     .catch(error => {
@@ -324,80 +346,46 @@ InquiryRouter
             };
 
 
-            InquiryService.createInquiry(
-                req.app.get("db"),
-                newInquiry
-            )
-                .then(inquiry => {
-
-                    return res.status(201).json({
-                        inquiry
-                    });
-
-                })
-                .catch(error => {
-
-                    next(error);
-
-                });
-
-        }
-    );
-
-
-/*
-    UPDATE INQUIRY
-*/
-InquiryRouter
-    .route("/:id")
-    .patch(
-        requireAuth,
-        express.json(),
-        (req, res, next) => {
-
-            const { id } = req.params;
-
-            const updatedInquiry = {
-                ...req.body
-            };
-
-
-            if(!Object.keys(updatedInquiry).length){
-
-                return res.status(400).json({
-                    error: "Request body cannot be empty"
-                });
-
-            };
-
-
             /*
-                PROTECT DATABASE-CONTROLLED FIELDS
+                CREATE INQUIRY WITHOUT PROPERTY
             */
-            delete updatedInquiry.id;
-            delete updatedInquiry.created_at;
-            delete updatedInquiry.updated_at;
-
-
-            InquiryService.updateInquiryById(
-                req.app.get("db"),
-                updatedInquiry,
-                id
-            )
+            return InquiryService
+                .createInquiry(
+                    req.app.get("db"),
+                    newInquiry
+                )
                 .then(inquiry => {
 
-                    if(!inquiry){
-
-                        return res.status(404).json({
-                            error: "Inquiry not found"
-                        });
-
+                    const newNotification = {
+                        type: "new_inquiry",
+                        title: "New Inquiry",
+                        message:
+                            `${inquiry.first_name} submitted a new inquiry.`,
+                        property_id:
+                            inquiry.property_id,
+                        reservation_id:
+                            null,
+                        conversation_id:
+                            null,
+                        inquiry_id:
+                            inquiry.id,
+                        is_read:
+                            false
                     };
 
 
-                    return res.status(200).json({
-                        inquiry
-                    });
+                    return notificationService
+                        .createNotification(
+                            req.app.get("db"),
+                            newNotification
+                        )
+                        .then(() => {
+
+                            return res.status(201).json({
+                                inquiry
+                            });
+
+                        });
 
                 })
                 .catch(error => {
@@ -408,7 +396,6 @@ InquiryRouter
 
         }
     );
-
 
 /*
     DELETE INQUIRY
@@ -422,7 +409,7 @@ InquiryRouter
             const { id } = req.params;
 
 
-            InquiryService.deleteInquiryById(
+            InquiryService.getInquiryById(
                 req.app.get("db"),
                 id
             )
@@ -437,9 +424,55 @@ InquiryRouter
                     };
 
 
-                    return res.status(200).json({
-                        inquiry
-                    });
+                    const newNotification = {
+                        type: "inquiry_deleted",
+                        title: "Inquiry Deleted",
+                        message:
+                            `Inquiry from ${inquiry.first_name}${inquiry.last_name ? ` ${inquiry.last_name}` : ""} (${inquiry.email}) was deleted.`,
+                        property_id:
+                            inquiry.property_id,
+                        reservation_id:
+                            null,
+                        conversation_id:
+                            null,
+                        inquiry_id:
+                            null,
+                        is_read:
+                            false
+                    };
+
+
+                    return notificationService
+                        .deleteNotificationByInquiryIdAndType(
+                            req.app.get("db"),
+                            inquiry.id,
+                            "new_inquiry"
+                        )
+                        .then(() => {
+
+                            return InquiryService
+                                .deleteInquiryById(
+                                    req.app.get("db"),
+                                    inquiry.id
+                                );
+
+                        })
+                        .then(deletedInquiry => {
+
+                            return notificationService
+                                .createNotification(
+                                    req.app.get("db"),
+                                    newNotification
+                                )
+                                .then(() => {
+
+                                    return res.status(200).json({
+                                        inquiry: deletedInquiry
+                                    });
+
+                                });
+
+                        });
 
                 })
                 .catch(error => {

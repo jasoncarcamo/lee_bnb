@@ -57,6 +57,58 @@ const InquiryService = {
             .where({ id })
             .returning("*")
             .then(([deletedInquiry]) => deletedInquiry);
+    },
+    getInquiriesByPropertyIdAndEmail(
+        db,
+        property_id,
+        email
+    ) {
+        return db
+            .select("*")
+            .from("inquiries")
+            .where({
+                property_id,
+                email
+            });
+    },
+
+    deleteInquiriesByPropertyIdAndEmail(
+        db,
+        property_id,
+        email
+    ) {
+        return db
+            .delete()
+            .from("inquiries")
+            .where({
+                property_id,
+                email
+            })
+            .returning("*");
+    },
+    deleteNotificationsByInquiryIdsAndType(
+        db,
+        inquiry_ids,
+        type
+    ) {
+
+        if(!inquiry_ids.length){
+
+            return Promise.resolve([]);
+        };
+
+
+        return db
+            .delete()
+            .from("notifications")
+            .whereIn(
+                "inquiry_id",
+                inquiry_ids
+            )
+            .where({
+                type
+            })
+            .returning("*");
     }
 };
 

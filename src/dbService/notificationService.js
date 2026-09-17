@@ -62,6 +62,34 @@ const NotificationService = {
             .where({ id })
             .returning("*")
             .then(([deletedNotification]) => deletedNotification);
+    },
+    deleteNotificationByReservationIdAndType(
+        db,
+        reservation_id,
+        type
+    ) {
+        return db
+            .delete()
+            .from("notifications")
+            .where({
+                reservation_id,
+                type
+            })
+            .returning("*");
+    },
+    deleteNotificationByInquiryIdAndType(
+    db,
+    inquiry_id,
+    type
+    ) {
+        return db
+            .delete()
+            .from("notifications")
+            .where({
+                inquiry_id,
+                type
+            })
+            .returning("*");
     }
 };
 
