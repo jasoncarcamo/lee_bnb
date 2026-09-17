@@ -26,6 +26,7 @@ const guestConversationAccessRouter = require("../routes/guestConversationAccess
 const inquiryRouter = require("../routes/inquiryRouter");
 const reviewRouter = require("../routes/reviewRouter");
 const notificationRouter = require("../routes/notificatonsRouter");
+const passwordResetRouter = require("../routes/passwordResetRouter");
 
 app.use(morgan("tiny"));
 app.use(cors());
@@ -52,6 +53,7 @@ app.use("/api/guest-conversation-access", guestConversationAccessRouter);
 app.use("/api/inquiries", inquiryRouter);
 app.use("/api/reviews", reviewRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api", passwordResetRouter);
 
 //Middleware error handler
 app.use(function errorHandler(error, req, res, next) {

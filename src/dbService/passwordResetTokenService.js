@@ -2,7 +2,7 @@ const PasswordResetTokenService = {
     getTokenByHash(db, token_hash) {
         return db
             .select("*")
-            .from("admin_password_reset_tokens")
+            .from("password_reset_tokens")
             .where({ token_hash })
             .first();
     },
@@ -10,7 +10,7 @@ const PasswordResetTokenService = {
     getTokensByAdminId(db, admin_id) {
         return db
             .select("*")
-            .from("admin_password_reset_tokens")
+            .from("password_reset_tokens")
             .where({ admin_id })
             .orderBy("created_at", "desc");
     },
@@ -18,7 +18,7 @@ const PasswordResetTokenService = {
     createPasswordResetToken(db, newToken) {
         return db
             .insert(newToken)
-            .into("admin_password_reset_tokens")
+            .into("password_reset_tokens")
             .returning("*")
             .then(([createdToken]) => createdToken);
     },
@@ -28,7 +28,7 @@ const PasswordResetTokenService = {
             .update({
                 used_at: new Date()
             })
-            .from("admin_password_reset_tokens")
+            .from("password_reset_tokens")
             .where({ id })
             .returning("*")
             .then(([usedToken]) => usedToken);
@@ -37,7 +37,7 @@ const PasswordResetTokenService = {
     deleteTokenById(db, id) {
         return db
             .delete()
-            .from("admin_password_reset_tokens")
+            .from("password_reset_tokens")
             .where({ id })
             .returning("*")
             .then(([deletedToken]) => deletedToken);
@@ -46,7 +46,7 @@ const PasswordResetTokenService = {
     deleteExpiredTokens(db) {
         return db
             .delete()
-            .from("admin_password_reset_tokens")
+            .from("password_reset_tokens")
             .where("expires_at", "<", new Date())
             .returning("*");
     }
