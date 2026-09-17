@@ -396,6 +396,107 @@ InquiryRouter
 
         }
     );
+    
+/*
+    UPDATE INQUIRY
+*/
+InquiryRouter
+    .route("/:id")
+    .patch(
+        requireAuth,
+        express.json(),
+        (req, res, next) => {
+
+            const { id } = req.params;
+
+            const updatedInquiry = {
+                ...req.body
+            };
+
+
+            if(!Object.keys(updatedInquiry).length){
+
+                return res.status(400).json({
+                    error: "Request body cannot be empty"
+                });
+
+            };
+
+
+            /*
+                PROTECT DATABASE-CONTROLLED FIELDS
+            */
+            delete updatedInquiry.id;
+            delete updatedInquiry.created_at;
+            delete updatedInquiry.updated_at;
+
+
+            InquiryService.updateInquiryById(
+                req.app.get("db"),
+                updatedInquiry,
+                id
+            )
+                .then(inquiry => {
+
+                    if(!inquiry){
+
+                        return res.status(404).json({
+                            error: "Inquiry not found"
+                        });
+
+                    };
+
+
+                    const newNotification = {
+                        type: "inquiry_updated",
+                        title: "Inquiry Updated",
+                        message:
+                            `Inquiry from ${inquiry.first_name}${inquiry.last_name ? ` ${inquiry.last_name}` : ""} was updated.`,
+                        property_id:
+                            inquiry.property_id,
+                        reservation_id:
+                            null,
+                        conversation_id:
+                            null,
+                        inquiry_id:
+                            inquiry.id,
+                        is_read:
+                            false
+                    };
+
+
+                    return notificationService
+                        .deleteNotificationByInquiryIdAndType(
+                            req.app.get("db"),
+                            inquiry.id,
+                            "inquiry_updated"
+                        )
+                        .then(() => {
+
+                            return notificationService
+                                .createNotification(
+                                    req.app.get("db"),
+                                    newNotification
+                                );
+
+                        })
+                        .then(() => {
+
+                            return res.status(200).json({
+                                inquiry
+                            });
+
+                        });
+
+                })
+                .catch(error => {
+
+                    next(error);
+
+                });
+
+        }
+    );
 
 /*
     DELETE INQUIRY
