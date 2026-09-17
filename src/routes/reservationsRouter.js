@@ -606,9 +606,46 @@ ReservationRouter
                     };
 
 
-                    return res.status(200).json({
-                        reservation
-                    });
+                    const newNotification = {
+                        type: "reservation_updated",
+                        title: "Reservation Updated",
+                        message:
+                            `Reservation ${reservation.confirmation_code} was updated.`,
+                        property_id:
+                            reservation.property_id,
+                        reservation_id:
+                            reservation.id,
+                        conversation_id:
+                            null,
+                        inquiry_id:
+                            null,
+                        is_read:
+                            false
+                    };
+
+
+                    return notificationService
+                        .deleteNotificationByReservationIdAndType(
+                            req.app.get("db"),
+                            reservation.id,
+                            "reservation_updated"
+                        )
+                        .then(() => {
+
+                            return notificationService
+                                .createNotification(
+                                    req.app.get("db"),
+                                    newNotification
+                                );
+
+                        })
+                        .then(() => {
+
+                            return res.status(200).json({
+                                reservation
+                            });
+
+                        });
 
                 })
                 .catch(error => {
