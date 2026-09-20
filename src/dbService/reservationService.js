@@ -88,7 +88,20 @@ const ReservationService = {
             .where({ id })
             .returning("*")
             .then(([cancelledReservation]) => cancelledReservation);
-    }
+    },
+    hasReservationsByPropertyId(db, property_id) {
+        return db
+            .select("id")
+            .from("reservations")
+            .where({ property_id })
+            .first()
+            .then(reservation => {
+
+                return Boolean(reservation);
+
+            });
+
+    },
 };
 
 module.exports = ReservationService;

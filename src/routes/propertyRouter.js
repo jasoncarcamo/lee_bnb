@@ -3,7 +3,7 @@ const PropertyRouter = express.Router();
 
 const PropertyService = require("../dbService/propertyService");
 const { requireAuth } = require("../middleware/jwtAuth");
-
+const ReservationService = require("../dbService/reservationService");
 
 /*
     GET ALL PROPERTIES
@@ -173,9 +173,6 @@ PropertyRouter
                 house_rules,
                 status
             };
-            
-            console.log(newProperty)
-
 
             const requiredFields = [
                 "name",
@@ -298,7 +295,8 @@ PropertyRouter
 
             const { id } = req.params;
 
-            PropertyService.deletePropertyById(
+
+            PropertyService.getPropertyById(
                 req.app.get("db"),
                 id
             )
@@ -312,9 +310,39 @@ PropertyRouter
 
                     };
 
-                    return res.status(200).json({
-                        property
-                    });
+
+                    return ReservationService
+                        .hasReservationsByPropertyId(
+                            req.app.get("db"),
+                            id
+                        )
+                        .then(hasReservations => {
+
+                            if(hasReservations){
+
+                                return res.status(409).json({
+                                    error:
+                                        "This property has reservation history and cannot be permanently deleted. Set the property to inactive instead."
+                                });
+
+                            };
+
+
+                            return PropertyService
+                                .deletePropertyById(
+                                    req.app.get("db"),
+                                    id
+                                )
+                                .then(deletedProperty => {
+
+                                    return res.status(200).json({
+                                        property:
+                                            deletedProperty
+                                    });
+
+                                });
+
+                        });
 
                 })
                 .catch(error => {
