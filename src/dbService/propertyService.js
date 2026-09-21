@@ -64,6 +64,54 @@ const PropertyService = {
             .where({ id })
             .returning("*")
             .then(([deletedProperty]) => deletedProperty);
+    },
+    createPropertyWithAvailability(
+        db,
+        newProperty,
+        blockedDates
+    ){
+
+        return db.transaction( trx => {
+
+            return PropertyService
+                .createProperty(
+                    trx,
+                    newProperty
+                )
+                .then( createdProperty => {
+
+                    if(!blockedDates.length){
+
+                        return createdProperty;
+
+                    };
+
+
+                    const propertyAvailability = blockedDates.map(
+                        date => {
+
+                            return {
+                                property_id: createdProperty.id,
+                                date,
+                                is_available: false
+                            };
+
+                        }
+                    );
+
+
+                    return trx("property_availability")
+                        .insert(propertyAvailability)
+                        .then(()=>{
+
+                            return createdProperty;
+
+                        });
+
+                });
+
+        });
+
     }
 };
 

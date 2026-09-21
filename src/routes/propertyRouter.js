@@ -141,7 +141,8 @@ PropertyRouter
                 instant_booking,
                 cancellation_policy,
                 house_rules,
-                status
+                status,
+                blocked_dates
             } = req.body;
 
 
@@ -171,7 +172,7 @@ PropertyRouter
                 instant_booking,
                 cancellation_policy,
                 house_rules,
-                status
+                status,
             };
 
             const requiredFields = [
@@ -190,7 +191,78 @@ PropertyRouter
                 "minimum_nights",
                 "base_price"
             ];
+            
+            if(!Array.isArray(blocked_dates)){
 
+                return res.status(400).json({
+                    error: "blocked_dates must be an array"
+                });
+
+            };
+
+
+            const today = new Date();
+
+            const todayString = [
+                today.getFullYear(),
+                String(today.getMonth() + 1).padStart(2, "0"),
+                String(today.getDate()).padStart(2, "0")
+            ].join("-");
+
+
+            for(const date of blocked_dates){
+
+                if(
+                    typeof date !== "string" ||
+                    !/^\d{4}-\d{2}-\d{2}$/.test(date)
+                ){
+
+                    return res.status(400).json({
+                        error: "Invalid blocked date"
+                    });
+
+                };
+
+
+                const parsedDate = new Date(
+                    `${date}T12:00:00`
+                );
+
+
+                if(
+                    Number.isNaN(parsedDate.getTime()) ||
+                    parsedDate.getFullYear() !== Number(date.slice(0, 4)) ||
+                    parsedDate.getMonth() + 1 !== Number(date.slice(5, 7)) ||
+                    parsedDate.getDate() !== Number(date.slice(8, 10))
+                ){
+
+                    return res.status(400).json({
+                        error: "Invalid blocked date"
+                    });
+
+                };
+
+
+                if(date < todayString){
+
+                    return res.status(400).json({
+                        error: "Cannot block past dates"
+                    });
+
+                };
+
+            };
+
+
+            if(
+                new Set(blocked_dates).size !== blocked_dates.length
+            ){
+
+                return res.status(400).json({
+                    error: "Duplicate blocked dates"
+                });
+
+            };
 
             for(const field of requiredFields){
 
@@ -209,9 +281,10 @@ PropertyRouter
             };
 
 
-            PropertyService.createProperty(
+            PropertyService.createPropertyWithAvailability(
                 req.app.get("db"),
-                newProperty
+                newProperty,
+                blocked_dates
             )
                 .then(createdProperty => {
 
