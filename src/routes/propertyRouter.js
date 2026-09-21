@@ -142,7 +142,8 @@ PropertyRouter
                 cancellation_policy,
                 house_rules,
                 status,
-                blocked_dates
+                blocked_dates,
+                amenities
             } = req.body;
 
 
@@ -279,12 +280,67 @@ PropertyRouter
                 };
 
             };
+            
+            if(!Array.isArray(amenities)){
+
+                return res.status(400).json({
+                    error: "amenities must be an array"
+                });
+
+            };
+
+
+            const normalizedAmenities = [];
+
+            const amenityNames = new Set();
+
+
+            for(const amenity of amenities){
+
+                if(typeof amenity !== "string"){
+
+                    return res.status(400).json({
+                        error: "Each amenity must be a name"
+                    });
+
+                };
+
+
+                const name = amenity.trim();
+
+                const normalizedName = name.toLowerCase();
+
+
+                if(!name){
+
+                    return res.status(400).json({
+                        error: "Amenity names cannot be empty"
+                    });
+
+                };
+
+
+                if(amenityNames.has(normalizedName)){
+
+                    return res.status(400).json({
+                        error: `Duplicate amenity: ${name}`
+                    });
+
+                };
+
+
+                amenityNames.add(normalizedName);
+
+                normalizedAmenities.push(name);
+
+            };
 
 
             PropertyService.createPropertyWithAvailability(
                 req.app.get("db"),
                 newProperty,
-                blocked_dates
+                blocked_dates,
+                normalizedAmenities
             )
                 .then(createdProperty => {
 

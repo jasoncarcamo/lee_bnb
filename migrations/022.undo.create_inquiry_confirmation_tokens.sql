@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS inquiry_confirmation_tokens;

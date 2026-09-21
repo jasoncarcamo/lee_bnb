@@ -68,7 +68,8 @@ const PropertyService = {
     createPropertyWithAvailability(
         db,
         newProperty,
-        blockedDates
+        blockedDates,
+        amenities = []
     ){
 
         return db.transaction( trx => {
@@ -80,31 +81,88 @@ const PropertyService = {
                 )
                 .then( createdProperty => {
 
-                    if(!blockedDates.length){
-
-                        return createdProperty;
-
-                    };
+                    const propertyId = createdProperty.id;
 
 
-                    const propertyAvailability = blockedDates.map(
-                        date => {
+                    const saveAmenities = amenities.reduce(
+                        (previousPromise, name) => {
 
-                            return {
-                                property_id: createdProperty.id,
-                                date,
-                                is_available: false
-                            };
+                            return previousPromise.then(()=>{
 
-                        }
+                                return trx("amenities")
+                                    .select("id")
+                                    .whereRaw(
+                                        "LOWER(name) = LOWER(?)",
+                                        [name]
+                                    )
+                                    .first()
+                                    .then( existingAmenity => {
+
+                                        if(existingAmenity){
+
+                                            return existingAmenity.id;
+
+                                        };
+
+
+                                        return trx("amenities")
+                                            .insert({
+                                                name
+                                            })
+                                            .returning("id")
+                                            .then(([createdAmenity])=>{
+
+                                                return createdAmenity.id;
+
+                                            });
+
+                                    })
+                                    .then( amenityId => {
+
+                                        return trx("property_amenities")
+                                            .insert({
+                                                property_id: propertyId,
+                                                amenity_id: amenityId
+                                            });
+
+                                    });
+
+                            });
+
+                        },
+                        Promise.resolve()
                     );
 
 
-                    return trx("property_availability")
-                        .insert(propertyAvailability)
+                    return saveAmenities
                         .then(()=>{
 
-                            return createdProperty;
+                            if(!blockedDates.length){
+
+                                return createdProperty;
+
+                            };
+
+
+                            const propertyAvailability =
+                                blockedDates.map( date => {
+
+                                    return {
+                                        property_id: propertyId,
+                                        date,
+                                        is_available: false
+                                    };
+
+                                });
+
+
+                            return trx("property_availability")
+                                .insert(propertyAvailability)
+                                .then(()=>{
+
+                                    return createdProperty;
+
+                                });
 
                         });
 
@@ -112,7 +170,7 @@ const PropertyService = {
 
         });
 
-    }
+    },
 };
 
 module.exports = PropertyService;
