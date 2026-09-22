@@ -439,6 +439,160 @@ const ReservationValidationService = {
 
         };
 
+    },
+    getReservationQuote: async function(
+    db,
+    {
+        property_id,
+        check_in,
+        check_out,
+        guests_count
+    }
+    ){
+
+        const propertyResult =
+            await this.validateProperty(
+                db,
+                property_id
+            );
+
+        if(!propertyResult.valid){
+
+            return propertyResult;
+
+        };
+
+
+        const property =
+            propertyResult.property;
+
+
+        const dateResult =
+            this.validateDates(
+                check_in,
+                check_out
+            );
+
+        if(!dateResult.valid){
+
+            return dateResult;
+
+        };
+
+
+        if(
+            dateResult.nights <
+            Number(property.minimum_nights || 1)
+        ){
+
+            return {
+
+                valid: false,
+
+                error:
+                    `Minimum stay is ${property.minimum_nights} nights`
+
+            };
+
+        };
+
+
+        const guestCountResult =
+            this.validateGuestCount(
+                guests_count,
+                property
+            );
+
+        if(!guestCountResult.valid){
+
+            return guestCountResult;
+
+        };
+
+
+        const reservationResult =
+            await this.checkExistingReservations(
+                db,
+                property_id,
+                check_in,
+                check_out
+            );
+
+        if(!reservationResult.valid){
+
+            return reservationResult;
+
+        };
+
+
+        const availabilityResult =
+            await this.checkAvailability(
+                db,
+                property_id,
+                check_in,
+                check_out
+            );
+
+        if(!availabilityResult.valid){
+
+            return availabilityResult;
+
+        };
+
+
+        const pricing =
+            await this.calculateReservationPricing(
+                db,
+                {
+
+                    property_id,
+
+                    check_in,
+
+                    check_out,
+
+                    property
+
+                }
+            );
+
+
+        const total =
+            this.calculateReservationTotal(
+                property,
+                pricing
+            );
+
+
+        return {
+
+            valid: true,
+
+            quote: {
+
+                property_id,
+
+                check_in,
+
+                check_out,
+
+                guests_count,
+
+                nights:
+                    pricing.nights,
+
+                nightly_prices:
+                    pricing.nightly_prices,
+
+                ...total,
+
+                currency:
+                    property.currency || "USD"
+
+            }
+
+        };
+
     }
 };
 

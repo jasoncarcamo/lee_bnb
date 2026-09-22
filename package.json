@@ -25,6 +25,7 @@
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.3.0",
     "morgan": "^1.9.1",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0"
   },
   "devDependencies": {

@@ -109,6 +109,111 @@ const InquiryService = {
                 type
             })
             .returning("*");
+    },
+    createConfirmationToken(db, newToken) {
+        return db
+            .insert(newToken)
+            .into("inquiry_confirmation_tokens")
+            .returning("*")
+            .then(([createdToken]) => createdToken);
+    },
+
+    getConfirmationTokenByHash(db, token_hash) {
+        return db
+            .select("*")
+            .from("inquiry_confirmation_tokens")
+            .where({ token_hash })
+            .first();
+    },
+
+    markConfirmationTokenUsed(db, id) {
+        return db
+            .update({
+                used_at: new Date()
+            })
+            .from("inquiry_confirmation_tokens")
+            .where({ id })
+            .whereNull("used_at")
+            .returning("*")
+            .then(([updatedToken]) => updatedToken);
+    },
+
+    deleteConfirmationTokensByInquiryId(db, inquiry_id) {
+        return db
+            .delete()
+            .from("inquiry_confirmation_tokens")
+            .where({ inquiry_id })
+            .returning("*");
+    },
+
+    getConfirmationTokensByInquiryId(db, inquiry_id) {
+        return db
+            .select("*")
+            .from("inquiry_confirmation_tokens")
+            .where({ inquiry_id })
+            .orderBy("created_at", "desc");
+    },
+    getConfirmationTokenByHashForUpdate(
+        db,
+        token_hash
+    ) {
+
+        return db
+            .select("*")
+            .from("inquiry_confirmation_tokens")
+            .where({ token_hash })
+            .forUpdate()
+            .first();
+
+    },
+
+    getInquiryByIdForUpdate(db, id) {
+
+        return db
+            .select("*")
+            .from("inquiries")
+            .where({ id })
+            .forUpdate()
+            .first();
+
+    },
+
+    deleteOtherConfirmationTokens(
+        db,
+        inquiry_id,
+        keep_token_id
+    ) {
+
+        return db
+            .from("inquiry_confirmation_tokens")
+            .where({ inquiry_id })
+            .whereNot({ id: keep_token_id })
+            .delete();
+
+    },
+
+    updateInquiryStatus(
+        db,
+        id,
+        status,
+        additionalFields = {}
+    ) {
+
+        return db
+            .from("inquiries")
+            .where({ id })
+            .update({
+
+                status,
+
+                ...additionalFields,
+
+                updated_at: new Date()
+
+            })
+            .returning("*")
+            .then(([inquiry]) => inquiry);
+
     }
 };
 
