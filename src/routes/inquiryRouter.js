@@ -12,7 +12,7 @@ const InquiryTokenService = require(
 const InquiryEmailService = require(
     "../securityService/inquiryEmailService"
 );
-
+const ReservationValidationService = require("../dbService/reservationValidationService")
 
 /*
     GET ALL INQUIRIES
@@ -157,7 +157,7 @@ InquiryRouter
     .route("/")
     .post(
         express.json(),
-        (req, res, next) => {
+        async (req, res, next) => {
 
             const {
                 property_id,
@@ -286,12 +286,12 @@ InquiryRouter
             */
             if(property_id){
 
-                return PropertyService
+                return await PropertyService
                     .getPropertyById(
                         req.app.get("db"),
                         property_id
                     )
-                    .then(property => {
+                    .then( async property => {
 
                         if(!property){
 
@@ -301,7 +301,41 @@ InquiryRouter
 
                         };
 
+                        let quote = null;
 
+                if (
+                    property_id &&
+                    check_in &&
+                    check_out &&
+                    guests_count
+                ) {
+
+                    const result =
+                         await ReservationValidationService
+                            .getReservationQuote(
+                                req.app.get("db"),
+                                {
+                                    property_id,
+                                    check_in,
+                                    check_out,
+                                    guests_count
+                                }
+                            );
+
+                    if (!result.valid) {
+
+                        return res.status(400).json({
+                            error: result.error
+                        });
+
+                    }
+
+                    quote = result.quote;
+
+                }
+                
+            newInquiry.quote = quote;
+                
                         return InquiryService
                             .createInquiry(
                                 req.app.get("db"),
@@ -355,6 +389,45 @@ InquiryRouter
             /*
                 CREATE INQUIRY WITHOUT PROPERTY
             */
+           
+           let quote = null;
+
+                if (
+                    property_id &&
+                    check_in &&
+                    check_out &&
+                    guests_count
+                ) {
+
+                    const result =
+                        await ReservationValidationService
+                            .getReservationQuote(
+                                req.app.get("db"),
+                                {
+                                    property_id,
+                                    check_in,
+                                    check_out,
+                                    guests_count
+                                }
+                            );
+
+                    if (!result.valid) {
+
+                        return res.status(400).json({
+                            error: result.error
+                        });
+
+                    }
+
+                    quote = result.quote;
+
+                }
+                
+                console.log(quote)
+                
+            newInquiry.quote = quote;
+                
+            updatedInquiry.quote = quote;
             return InquiryService
                 .createInquiry(
                     req.app.get("db"),
@@ -411,9 +484,15 @@ InquiryRouter
     .patch(
         requireAuth,
         express.json(),
-        (req, res, next) => {
+        async (req, res, next) => {
 
             const { id } = req.params;
+            const {
+                property_id,
+                    check_in,
+                    check_out,
+                    guests_count
+            } = req.body;
 
             const updatedInquiry = {
                 ...req.body
@@ -436,7 +515,41 @@ InquiryRouter
             delete updatedInquiry.created_at;
             delete updatedInquiry.updated_at;
 
+            let quote = null;
 
+                if (
+                    property_id &&
+                    check_in &&
+                    check_out &&
+                    guests_count
+                ) {
+
+                    const result =
+                        await ReservationValidationService
+                            .getReservationQuote(
+                                req.app.get("db"),
+                                {
+                                    property_id,
+                                    check_in,
+                                    check_out,
+                                    guests_count
+                                }
+                            );
+
+                    if (!result.valid) {
+
+                        return res.status(400).json({
+                            error: result.error
+                        });
+
+                    }
+
+                    quote = result.quote;
+
+                }
+                
+            updatedInquiry.quote = quote;
+            
             InquiryService.updateInquiryById(
                 req.app.get("db"),
                 updatedInquiry,
@@ -487,7 +600,7 @@ InquiryRouter
 
                         })
                         .then(() => {
-
+                            console.log(inquiry)
                             return res.status(200).json({
                                 inquiry
                             });
@@ -591,6 +704,7 @@ InquiryRouter
         }
     );
 
+/* Admin create inquiry*/
 InquiryRouter
     .route("/admin")
     .post(
@@ -703,48 +817,62 @@ InquiryRouter
                     }
 
                 }
+                
+                let quote = null;
+
+                if (
+                    property_id &&
+                    check_in &&
+                    check_out &&
+                    guests_count
+                ) {
+
+                    const result =
+                        await ReservationValidationService
+                            .getReservationQuote(
+                                db,
+                                {
+                                    property_id,
+                                    check_in,
+                                    check_out,
+                                    guests_count
+                                }
+                            );
+
+                    if (!result.valid) {
+
+                        return res.status(400).json({
+                            error: result.error
+                        });
+
+                    }
+
+                    quote = result.quote;
+
+                }
 
                 const inquiry =
                     await InquiryService.createInquiry(
-                        db,
-                        {
+                    db,
+                    {
+                        property_id: property_id || null,
 
-                            property_id:
-                                property_id || null,
-
-                            first_name,
-
-                            last_name:
-                                last_name || null,
-
-                            email,
-
-                            phone:
-                                phone || null,
-
-                            subject:
-                                subject || null,
-
-                            message,
-
-                            check_in:
-                                check_in || null,
-
-                            check_out:
-                                check_out || null,
-
-                            guests_count:
-                                guests_count || null,
-
-                            created_by: "admin",
-
-                            status: "new"
-
-                        }
-                    );
-
+                        first_name,
+                        last_name: last_name || null,
+                        email,
+                        phone: phone || null,
+                        subject: subject || null,
+                        message,
+                        quote: quote | null,
+                        check_in: check_in || null,
+                        check_out: check_out || null,
+                        guests_count: guests_count || null,
+                        created_by: "admin",
+                        status: "new"
+                    }
+                );
+                
                 return res.status(201).json({
-
                     inquiry
 
                 });
@@ -1158,7 +1286,7 @@ InquiryRouter
                     });
 
                 }
-
+    console.log("Inquiry", result)
                 return res.status(200).json({
 
                     inquiry: result,
@@ -1175,6 +1303,52 @@ InquiryRouter
                 next(error);
 
             }
+
+        }
+    );
+    
+    /*
+    PREVIEW RESERVATION PROPOSAL
+*/
+InquiryRouter
+    .route("/quote")
+    .post(
+        requireAuth,
+        express.json(),
+        async (req, res, next) => {
+
+            try {
+
+                const result =
+                    await ReservationValidationService
+                        .getReservationQuote(
+                            req.app.get("db"),
+                            req.body
+                        );
+
+
+                if(!result.valid){
+
+                    return res.status(400).json({
+
+                        error: result.error
+
+                    });
+
+                };
+                console.log("Quote", result)
+
+                return res.status(200).json({
+
+                    quote: result.quote
+
+                });
+
+            } catch(error){
+
+                next(error);
+
+            };
 
         }
     );

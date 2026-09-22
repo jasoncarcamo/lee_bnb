@@ -30,7 +30,7 @@ CREATE TABLE inquiries (
     status VARCHAR(30) NOT NULL DEFAULT 'new',
 
     created_by VARCHAR(20) NOT NULL DEFAULT 'guest',
-
+    quote JSONB,
     sent_at TIMESTAMPTZ,
 
     responded_at TIMESTAMPTZ,
