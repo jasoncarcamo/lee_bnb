@@ -421,13 +421,10 @@ InquiryRouter
 
                     quote = result.quote;
 
-                }
-                
-                console.log(quote)
+                };
                 
             newInquiry.quote = quote;
                 
-            updatedInquiry.quote = quote;
             return InquiryService
                 .createInquiry(
                     req.app.get("db"),
@@ -600,11 +597,9 @@ InquiryRouter
 
                         })
                         .then(() => {
-                            console.log(inquiry)
                             return res.status(200).json({
                                 inquiry
                             });
-
                         });
 
                 })
@@ -918,14 +913,12 @@ InquiryRouter
 
                 if (
                     inquiry.status === "confirmed" ||
+                    inquiry.status === "declined" ||
                     inquiry.status === "canceled"
                 ) {
 
                     return res.status(409).json({
-
-                        error:
-                            "This inquiry has already been resolved"
-
+                        error: "This inquiry has already been resolved"
                     });
 
                 }
@@ -989,7 +982,7 @@ InquiryRouter
                                     inquiry.id,
                                     createdToken.id
                                 );
-
+                            console.log(token)
                             return InquiryService
                                 .updateInquiryStatus(
                                     trx,
@@ -998,7 +991,6 @@ InquiryRouter
                                     {
 
                                         sent_at: new Date(),
-
                                         responded_at: null
 
                                     }
@@ -1010,7 +1002,7 @@ InquiryRouter
                 return res.status(200).json({
 
                     inquiry: updatedInquiry,
-
+                    token,
                     message:
                         "Inquiry email accepted by email provider"
 
@@ -1113,36 +1105,17 @@ InquiryRouter
                 return res.status(200).json({
 
                     inquiry: {
-
                         id: inquiry.id,
-
-                        property_id:
-                            inquiry.property_id,
-
-                        first_name:
-                            inquiry.first_name,
-
-                        last_name:
-                            inquiry.last_name,
-
-                        subject:
-                            inquiry.subject,
-
-                        message:
-                            inquiry.message,
-
-                        check_in:
-                            inquiry.check_in,
-
-                        check_out:
-                            inquiry.check_out,
-
-                        guests_count:
-                            inquiry.guests_count,
-
-                        status:
-                            inquiry.status
-
+                        property_id: inquiry.property_id,
+                        first_name: inquiry.first_name,
+                        last_name: inquiry.last_name,
+                        subject: inquiry.subject,
+                        quote: inquiry.quote,
+                        message: inquiry.message,
+                        check_in: inquiry.check_in,
+                        check_out: inquiry.check_out,
+                        guests_count: inquiry.guests_count,
+                        status: inquiry.status
                     }
 
                 });
@@ -1168,14 +1141,11 @@ InquiryRouter
 
                 if (
                     decision !== "confirm" &&
-                    decision !== "cancel"
+                    decision !== "decline"
                 ) {
 
                     return res.status(400).json({
-
-                        error:
-                            "decision must be confirm or cancel"
-
+                        error: "decision must be confirm or decline"
                     });
 
                 }
@@ -1232,7 +1202,7 @@ InquiryRouter
                             const status =
                                 decision === "confirm"
                                     ? "confirmed"
-                                    : "canceled";
+                                    : "declined";
 
                             const updatedInquiry =
                                 await InquiryService
@@ -1262,15 +1232,7 @@ InquiryRouter
                                 );
 
                             return {
-
-                                id: updatedInquiry.id,
-
-                                status:
-                                    updatedInquiry.status,
-
-                                responded_at:
-                                    updatedInquiry.responded_at
-
+                                updatedInquiry
                             };
 
                         }
@@ -1285,8 +1247,8 @@ InquiryRouter
 
                     });
 
-                }
-    console.log("Inquiry", result)
+                };
+                
                 return res.status(200).json({
 
                     inquiry: result,
@@ -1294,7 +1256,7 @@ InquiryRouter
                     message:
                         decision === "confirm"
                             ? "Inquiry confirmed"
-                            : "Inquiry canceled"
+                            : "Inquiry declined"
 
                 });
 
@@ -1336,7 +1298,6 @@ InquiryRouter
                     });
 
                 };
-                console.log("Quote", result)
 
                 return res.status(200).json({
 
@@ -1349,6 +1310,93 @@ InquiryRouter
                 next(error);
 
             };
+
+        }
+    );
+    
+/*
+    CANCEL CONFIRMED INQUIRY
+*/
+InquiryRouter
+    .route("/:id/cancel")
+    .post(
+        requireAuth,
+        async (req, res, next) => {
+
+            try {
+
+                const db = req.app.get("db");
+
+                const { id } = req.params;
+
+                const result =
+                    await db.transaction(
+                        async trx => {
+
+                            const inquiry =
+                                await InquiryService
+                                    .getInquiryByIdForUpdate(
+                                        trx,
+                                        id
+                                    );
+
+                            if (!inquiry) {
+
+                                return {
+                                    error: "Inquiry not found",
+                                    status: 404
+                                };
+
+                            }
+
+                            if (
+                                inquiry.status !== "confirmed"
+                            ) {
+
+                                return {
+                                    error:
+                                        "Only confirmed inquiries can be canceled",
+                                    status: 409
+                                };
+
+                            }
+
+                            const updatedInquiry =
+                                await InquiryService
+                                    .updateInquiryStatus(
+                                        trx,
+                                        inquiry.id,
+                                        "canceled"
+                                    );
+
+                            return {
+                                inquiry: updatedInquiry
+                            };
+
+                        }
+                    );
+
+                if (result.error) {
+
+                    return res.status(result.status).json({
+                        error: result.error
+                    });
+
+                }
+
+                return res.status(200).json({
+
+                    inquiry: result.inquiry,
+
+                    message: "Inquiry canceled"
+
+                });
+
+            } catch (error) {
+
+                next(error);
+
+            }
 
         }
     );

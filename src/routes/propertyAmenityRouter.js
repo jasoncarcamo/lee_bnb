@@ -55,9 +55,6 @@ PropertyAmenityRouter
                 property_id,
                 amenity_id
             };
-            
-            console.log(propertyAmenity);
-
 
             if(
                 !amenity_id

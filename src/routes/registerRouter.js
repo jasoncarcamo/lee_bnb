@@ -27,7 +27,6 @@ RegisterRouter
 
         const database = req.app.get("db");
 
-        console.log(first_name);
         for(const [key, value] of Object.entries(newAdmin)){
 
             if(value == undefined){

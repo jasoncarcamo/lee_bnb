@@ -1,23 +1,23 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE inquiries (
 
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     property_id UUID
-
         REFERENCES properties(id)
-
         ON DELETE SET NULL,
 
-    first_name VARCHAR(100) NOT NULL,
+    first_name TEXT NOT NULL,
 
-    last_name VARCHAR(100),
+    last_name TEXT,
 
     email CITEXT NOT NULL,
 
-    phone VARCHAR(30),
+    phone TEXT,
 
-    subject VARCHAR(255),
+    subject TEXT,
 
     message TEXT NOT NULL,
 
@@ -27,10 +27,29 @@ CREATE TABLE inquiries (
 
     guests_count INTEGER,
 
-    status VARCHAR(30) NOT NULL DEFAULT 'new',
-
-    created_by VARCHAR(20) NOT NULL DEFAULT 'guest',
     quote JSONB,
+
+    status TEXT NOT NULL DEFAULT 'new',
+
+    CONSTRAINT inquiries_status_check
+    CHECK (
+        status IN (
+            'new',
+            'pending_confirmation',
+            'confirmed',
+            'declined',
+            'canceled'
+        )
+    ),
+
+    created_by TEXT NOT NULL DEFAULT 'guest'
+        CHECK (
+            created_by IN (
+                'guest',
+                'admin'
+            )
+        ),
+
     sent_at TIMESTAMPTZ,
 
     responded_at TIMESTAMPTZ,
@@ -39,78 +58,17 @@ CREATE TABLE inquiries (
 
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT inquiries_guests_count_check
+    CONSTRAINT inquiries_valid_dates
+        CHECK (
+            check_in IS NULL
+            OR check_out IS NULL
+            OR check_out > check_in
+        ),
 
-    CHECK (
-
-        guests_count IS NULL
-
-        OR guests_count > 0
-
-    ),
-
-    CONSTRAINT inquiries_created_by_check
-
-    CHECK (
-
-        created_by IN (
-
-            'guest',
-
-            'admin'
-
+    CONSTRAINT inquiries_valid_guests
+        CHECK (
+            guests_count IS NULL
+            OR guests_count > 0
         )
-
-    ),
-
-    CONSTRAINT inquiries_status_check
-
-    CHECK (
-
-        status IN (
-
-            'new',
-
-            'pending_confirmation',
-
-            'confirmed',
-
-            'canceled'
-
-        )
-
-    ),
-
-    CONSTRAINT inquiries_dates_check
-
-    CHECK (
-
-        check_in IS NULL
-
-        OR check_out IS NULL
-
-        OR check_out > check_in
-
-    )
 
 );
-
-
-CREATE INDEX idx_inquiries_property
-
-ON inquiries(property_id);
-
-
-CREATE INDEX idx_inquiries_status
-
-ON inquiries(status);
-
-
-CREATE INDEX idx_inquiries_created
-
-ON inquiries(created_at DESC);
-
-
-CREATE INDEX idx_inquiries_email
-
-ON inquiries(email);

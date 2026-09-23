@@ -45,7 +45,6 @@ const PropertyService = {
 
     updatePropertyById(db, updatedProperty, id) {
         
-        console.log(id)
         return db
             .update({
                 ...updatedProperty,

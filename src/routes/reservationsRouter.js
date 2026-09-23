@@ -663,7 +663,7 @@ ReservationRouter
 */
 ReservationRouter
     .route("/:id/cancel")
-    .patch(
+    .post(
         requireAuth,
         express.json(),
         (req, res, next) => {
