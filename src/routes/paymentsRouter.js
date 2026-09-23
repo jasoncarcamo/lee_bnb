@@ -293,6 +293,14 @@ PaymentRouter
             delete updatedPayment.currency;
             delete updatedPayment.created_at;
             delete updatedPayment.updated_at;
+            delete updatedPayment.status;
+            delete updatedPayment.paid_at;
+            delete updatedPayment.refunded_at;
+
+            delete updatedPayment.payment_provider;
+            delete updatedPayment.provider_payment_id;
+            delete updatedPayment.provider_customer_id;
+            delete updatedPayment.provider_checkout_session_id;
 
 
             PaymentService.updatePaymentById(

@@ -48,6 +48,153 @@ const PaymentService = {
             .where({ id })
             .returning("*")
             .then(([updatedPayment]) => updatedPayment);
+    },
+    confirmVerifiedPayment(db, paymentId){
+
+        return db.transaction(async trx => {
+
+            const payment = await trx("payments")
+                .where({ id: paymentId })
+                .forUpdate()
+                .first();
+
+
+            if(!payment){
+
+                const error = new Error(
+                    "Payment not found"
+                );
+
+                error.status = 404;
+
+                throw error;
+
+            };
+
+
+            const reservation = await trx("reservations")
+                .where({ id: payment.reservation_id })
+                .forUpdate()
+                .first();
+
+
+            if(!reservation){
+
+                const error = new Error(
+                    "Reservation not found"
+                );
+
+                error.status = 404;
+
+                throw error;
+
+            };
+
+
+            if(
+                payment.status === "paid" &&
+                reservation.status === "confirmed"
+            ){
+
+                return {
+                    payment,
+                    reservation,
+                    alreadyConfirmed: true
+                };
+
+            };
+
+
+            if(
+                payment.status !== "pending" &&
+                payment.status !== "paid"
+            ){
+
+                const error = new Error(
+                    "Payment cannot be confirmed from its current status"
+                );
+
+                error.status = 409;
+
+                throw error;
+
+            };
+
+
+            if(reservation.status !== "pending"){
+
+                const error = new Error(
+                    "Reservation cannot be confirmed from its current status"
+                );
+
+                error.status = 409;
+
+                throw error;
+
+            };
+
+
+            if(
+                Number(payment.amount) !==
+                Number(reservation.total_price)
+                ||
+                payment.currency !== reservation.currency
+            ){
+
+                const error = new Error(
+                    "Payment amount or currency does not match reservation"
+                );
+
+                error.status = 409;
+
+                throw error;
+
+            };
+
+
+            const now = new Date();
+
+
+            const updatedPayment = await trx("payments")
+                .where({ id: paymentId })
+                .update({
+
+                    status: "paid",
+
+                    paid_at: payment.paid_at || now,
+
+                    updated_at: now
+
+                })
+                .returning("*")
+                .then(([result]) => result);
+
+
+            const updatedReservation = await trx("reservations")
+                .where({ id: reservation.id })
+                .update({
+
+                    status: "confirmed",
+
+                    updated_at: now
+
+                })
+                .returning("*")
+                .then(([result]) => result);
+
+
+            return {
+
+                payment: updatedPayment,
+
+                reservation: updatedReservation,
+
+                alreadyConfirmed: false
+
+            };
+
+        });
+
     }
 };
 
