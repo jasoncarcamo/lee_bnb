@@ -1,4 +1,6 @@
+
 const express = require("express");
+
 const RefundRouter = express.Router();
 
 const RefundService = require("../dbService/refundService");
@@ -25,7 +27,7 @@ RefundRouter
             )
                 .then(refund => {
 
-                    if(!refund){
+                    if (!refund) {
 
                         return res.status(404).json({
                             error: "Refund not found"
@@ -39,11 +41,7 @@ RefundRouter
                     });
 
                 })
-                .catch(error => {
-
-                    next(error);
-
-                });
+                .catch(next);
 
         }
     );
@@ -72,11 +70,7 @@ RefundRouter
                     });
 
                 })
-                .catch(error => {
-
-                    next(error);
-
-                });
+                .catch(next);
 
         }
     );
@@ -100,11 +94,13 @@ RefundRouter
             } = req.body;
 
 
-            if(
-                payment_id === undefined ||
-                payment_id === null ||
-                payment_id === ""
-            ){
+            /*
+                VALIDATE PAYMENT ID
+            */
+            if (
+                typeof payment_id !== "string" ||
+                !payment_id.trim()
+            ) {
 
                 return res.status(400).json({
                     error: "Missing payment_id in body request"
@@ -113,11 +109,14 @@ RefundRouter
             };
 
 
-            if(
+            /*
+                VALIDATE REFUND AMOUNT
+            */
+            if (
                 amount === undefined ||
                 amount === null ||
                 amount === ""
-            ){
+            ) {
 
                 return res.status(400).json({
                     error: "Missing amount in body request"
@@ -128,181 +127,258 @@ RefundRouter
 
             const refundAmount = Number(amount);
 
+            const refundAmountCents =
+                Math.round(refundAmount * 100);
 
-            if(
-                Number.isNaN(refundAmount) ||
-                refundAmount <= 0
-            ){
+
+            if (
+                !Number.isFinite(refundAmount) ||
+                refundAmount <= 0 ||
+                !Number.isSafeInteger(refundAmountCents) ||
+                Math.abs(
+                    refundAmount * 100 - refundAmountCents
+                ) > 0.000001
+            ) {
 
                 return res.status(400).json({
-                    error: "Refund amount must be greater than 0"
+                    error:
+                        "Refund amount must be a positive amount with no more than two decimal places"
                 });
 
             };
 
 
-            let payment;
+            const db = req.app.get("db");
 
 
-            PaymentService.getPaymentById(
-                req.app.get("db"),
-                payment_id
-            )
-                .then(foundPayment => {
+            /*
+                PAYMENT LOCK + REFUND CREATION
+                + PAYMENT STATUS UPDATE
 
-                    if(!foundPayment){
+                ALL THREE OPERATIONS ARE PERFORMED
+                IN ONE DATABASE TRANSACTION.
+            */
+            db.transaction(async trx => {
 
-                        return res.status(404).json({
+                /*
+                    LOCK THE PAYMENT ROW.
+
+                    A SECOND REFUND REQUEST FOR THIS
+                    PAYMENT MUST WAIT UNTIL THIS
+                    TRANSACTION FINISHES.
+                */
+                const payment = await trx("payments")
+                    .where({
+                        id: payment_id
+                    })
+                    .forUpdate()
+                    .first();
+
+
+                /*
+                    PAYMENT MUST EXIST
+                */
+                if (!payment) {
+
+                    return {
+                        status: 404,
+
+                        body: {
                             error: "Payment not found"
-                        });
-
+                        }
                     };
 
+                };
 
-                    payment = foundPayment;
+
+                /*
+                    PAYMENT MUST HAVE BEEN PAID.
+
+                    A PARTIALLY REFUNDED PAYMENT
+                    CAN RECEIVE ANOTHER REFUND.
+
+                    A FULLY REFUNDED PAYMENT
+                    WILL BE REJECTED BY THE
+                    REMAINING-BALANCE CHECK BELOW.
+                */
+                if (
+                    ![
+                        "paid",
+                        "partially_refunded",
+                        "refunded"
+                    ].includes(payment.status)
+                ) {
+
+                    return {
+                        status: 409,
+
+                        body: {
+                            error:
+                                `Cannot refund a payment with status "${payment.status}"`
+                        }
+                    };
+
+                };
 
 
-                    return RefundService.getRefundsByPaymentId(
-                        req.app.get("db"),
+                /*
+                    LOAD EXISTING REFUNDS WHILE
+                    THE PAYMENT ROW IS LOCKED.
+                */
+                const refunds =
+                    await RefundService.getRefundsByPaymentId(
+                        trx,
                         payment_id
                     );
 
-                })
-                .then(refunds => {
 
-                    if(!refunds){
+                /*
+                    CALCULATE ALL AMOUNTS IN CENTS
+                    TO AVOID FLOATING-POINT ERRORS.
+                */
+                const refundedCents =
+                    refunds.reduce(
+                        (total, refund) => {
 
-                        return;
+                            return total +
+                                Math.round(
+                                    Number(refund.amount) * 100
+                                );
 
-                    };
-
-
-                    const refundedAmount =
-                        refunds.reduce(
-                            (total, refund) => {
-
-                                return total +
-                                    Number(refund.amount);
-
-                            },
-                            0
-                        );
+                        },
+                        0
+                    );
 
 
-                    const remainingAmount =
-                        Number(payment.amount) -
-                        refundedAmount;
+                const paymentAmountCents =
+                    Math.round(
+                        Number(payment.amount) * 100
+                    );
 
 
-                    if(refundAmount > remainingAmount){
+                const remainingCents =
+                    paymentAmountCents -
+                    refundedCents;
 
-                        return res.status(400).json({
+
+                /*
+                    REJECT REFUNDS THAT EXCEED
+                    THE REMAINING BALANCE.
+                */
+                if (
+                    remainingCents <= 0 ||
+                    refundAmountCents > remainingCents
+                ) {
+
+                    return {
+                        status: 409,
+
+                        body: {
                             error:
-                                `Refund amount cannot exceed remaining payment amount of ${remainingAmount.toFixed(2)}`
-                        });
-
+                                `Refund amount cannot exceed remaining payment amount of ${(Math.max(0, remainingCents) / 100).toFixed(2)}`
+                        }
                     };
 
-
-                    const newRefund = {
-
-                        payment_id,
-
-                        amount:
-                            refundAmount,
-
-                        reason:
-                            reason || null,
-
-                        provider_refund_id:
-                            provider_refund_id || null
-
-                    };
+                };
 
 
-                    return RefundService.createRefund(
-                        req.app.get("db"),
+                /*
+                    CREATE REFUND RECORD
+                */
+                const newRefund = {
+
+                    payment_id,
+
+                    amount:
+                        (refundAmountCents / 100).toFixed(2),
+
+                    reason:
+                        typeof reason === "string"
+                            ? reason.trim() || null
+                            : null,
+
+                    provider_refund_id:
+                        typeof provider_refund_id === "string"
+                            ? provider_refund_id.trim() || null
+                            : null
+
+                };
+
+
+                const refund =
+                    await RefundService.createRefund(
+                        trx,
                         newRefund
                     );
 
-                })
-                .then(refund => {
 
-                    if(!refund){
+                /*
+                    CALCULATE THE NEW REFUNDED TOTAL
+                */
+                const newRefundedCents =
+                    refundedCents +
+                    refundAmountCents;
 
-                        return;
 
-                    };
-
-
-                    const totalRefunded =
-                        Number(refund.amount);
-
+                /*
+                    UPDATE PAYMENT STATUS
+                */
+                if (
+                    newRefundedCents ===
+                    paymentAmountCents
+                ) {
 
                     /*
-                        IF THIS REFUND COMPLETES
-                        THE FULL PAYMENT REFUND
+                        FULLY REFUNDED
                     */
-                    return RefundService.getRefundsByPaymentId(
-                        req.app.get("db"),
+                    await PaymentService.updatePaymentById(
+                        trx,
+                        {
+                            status: "refunded",
+
+                            refunded_at: new Date()
+                        },
                         payment_id
-                    )
-                        .then(refunds => {
+                    );
 
-                            const refundedAmount =
-                                refunds.reduce(
-                                    (total, item) => {
+                } else {
 
-                                        return total +
-                                            Number(item.amount);
+                    /*
+                        PARTIALLY REFUNDED
+                    */
+                    await PaymentService.updatePaymentById(
+                        trx,
+                        {
+                            status: "partially_refunded",
 
-                                    },
-                                    0
-                                );
+                            refunded_at: null
+                        },
+                        payment_id
+                    );
 
-
-                            if(
-                                refundedAmount >=
-                                Number(payment.amount)
-                            ){
-
-                                return PaymentService.updatePaymentById(
-                                    req.app.get("db"),
-                                    {
-                                        status: "refunded",
-                                        refunded_at: new Date()
-                                    },
-                                    payment_id
-                                )
-                                    .then(() => refund);
-
-                            };
+                };
 
 
-                            return refund;
+                /*
+                    SUCCESS RESPONSE
+                */
+                return {
+                    status: 201,
 
-                        });
-
-                })
-                .then(refund => {
-
-                    if(!refund){
-
-                        return;
-
-                    };
-
-
-                    return res.status(201).json({
+                    body: {
                         refund
-                    });
+                    }
+                };
+
+            })
+                .then(result => {
+
+                    return res
+                        .status(result.status)
+                        .json(result.body);
 
                 })
-                .catch(error => {
-
-                    next(error);
-
-                });
+                .catch(next);
 
         }
     );

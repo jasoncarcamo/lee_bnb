@@ -676,74 +676,104 @@ ReservationRouter
 
 
             if(
-                cancellation_reason === undefined ||
-                cancellation_reason === null ||
-                cancellation_reason === ""
+                typeof cancellation_reason !== "string" ||
+                !cancellation_reason.trim()
             ){
 
                 return res.status(400).json({
-                    error: "Missing cancellation_reason in body request"
+                    error: "Cancellation reason is required"
                 });
 
             };
 
 
+            const db = req.app.get("db");
+
+
             ReservationService.cancelReservationById(
-                req.app.get("db"),
-                cancellation_reason,
+                db,
+                cancellation_reason.trim(),
                 id
             )
                 .then(reservation => {
 
                     if(!reservation){
 
-                        return res.status(404).json({
-                            error: "Reservation not found"
-                        });
+                        return ReservationService
+                            .getReservationById(
+                                db,
+                                id
+                            )
+                            .then(existingReservation => {
+
+                                if(!existingReservation){
+
+                                    return res.status(404).json({
+                                        error: "Reservation not found"
+                                    });
+
+                                };
+
+
+                                return res.status(409).json({
+                                    error:
+                                        `Cannot cancel a reservation with status "${existingReservation.status}"`
+                                });
+
+                            });
 
                     };
 
 
                     const newNotification = {
+
                         type: "reservation_cancelled",
+
                         title: "Reservation Cancelled",
+
                         message:
                             `Reservation ${reservation.confirmation_code} was cancelled.`,
+
                         property_id:
                             reservation.property_id,
+
                         reservation_id:
                             reservation.id,
+
                         conversation_id:
                             null,
+
                         inquiry_id:
                             null,
+
                         is_read:
                             false
+
                     };
 
 
                     return notificationService
-                    .deleteNotificationByReservationIdAndType(
-                        req.app.get("db"),
-                        reservation.id,
-                        "new_reservation"
-                    )
-                    .then(() => {
+                        .deleteNotificationByReservationIdAndType(
+                            db,
+                            reservation.id,
+                            "new_reservation"
+                        )
+                        .then(() => {
 
-                        return notificationService
-                            .createNotification(
-                                req.app.get("db"),
-                                newNotification
-                            );
+                            return notificationService
+                                .createNotification(
+                                    db,
+                                    newNotification
+                                );
 
-                    })
-                    .then(() => {
+                        })
+                        .then(() => {
 
-                        return res.status(200).json({
-                            reservation
+                            return res.status(200).json({
+                                reservation
+                            });
+
                         });
-
-                    });
 
                 })
                 .catch(error => {

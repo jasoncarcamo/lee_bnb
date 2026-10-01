@@ -235,30 +235,42 @@ InquiryRouter
             /*
                 VALIDATE OPTIONAL DATES
             */
-            if(
+            if (
+                (check_in && !check_out) ||
+                (!check_in && check_out)
+            ) {
+
+                return res.status(400).json({
+                    error: "Provide both check_in and check_out"
+                });
+
+            };
+
+            if (
                 check_in &&
                 check_out
-            ){
+            ) {
 
-                const checkInDate =
-                    new Date(
-                        `${check_in}T00:00:00`
+                const isValidDate = date => {
+
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                        return false;
+                    }
+
+                    const parsedDate =
+                        new Date(`${date}T00:00:00Z`);
+
+                    return (
+                        !Number.isNaN(parsedDate.getTime()) &&
+                        parsedDate.toISOString().split("T")[0] === date
                     );
 
-                const checkOutDate =
-                    new Date(
-                        `${check_out}T00:00:00`
-                    );
+                };
 
-
-                if(
-                    Number.isNaN(
-                        checkInDate.getTime()
-                    ) ||
-                    Number.isNaN(
-                        checkOutDate.getTime()
-                    )
-                ){
+                if (
+                    !isValidDate(check_in) ||
+                    !isValidDate(check_out)
+                ) {
 
                     return res.status(400).json({
                         error: "Invalid inquiry dates"
@@ -266,11 +278,7 @@ InquiryRouter
 
                 };
 
-
-                if(
-                    checkOutDate <=
-                    checkInDate
-                ){
+                if (check_out <= check_in) {
 
                     return res.status(400).json({
                         error: "check_out must be after check_in"
@@ -279,7 +287,21 @@ InquiryRouter
                 };
 
             };
+            
+            if (
+                guests_count !== undefined &&
+                guests_count !== null &&
+                (
+                    !Number.isInteger(guests_count) ||
+                    guests_count <= 0
+                )
+            ) {
 
+                return res.status(400).json({
+                    error: "guests_count must be a positive integer"
+                });
+
+            };
 
             /*
                 PROPERTY IS OPTIONAL
@@ -486,14 +508,34 @@ InquiryRouter
             const { id } = req.params;
             const {
                 property_id,
-                    check_in,
-                    check_out,
-                    guests_count
+                first_name,
+                last_name,
+                email,
+                phone,
+                subject,
+                message,
+                check_in,
+                check_out,
+                guests_count
             } = req.body;
-
-            const updatedInquiry = {
-                ...req.body
+            
+            const editableFields = {
+                property_id,
+                first_name,
+                last_name,
+                email,
+                phone,
+                subject,
+                message,
+                check_in,
+                check_out,
+                guests_count
             };
+
+            const updatedInquiry = Object.fromEntries(
+                Object.entries(editableFields)
+                    .filter(([, value]) => value !== undefined)
+            );
 
 
             if(!Object.keys(updatedInquiry).length){
@@ -503,35 +545,163 @@ InquiryRouter
                 });
 
             };
+            
+            if (
+                guests_count !== undefined &&
+                guests_count !== null &&
+                (
+                    !Number.isInteger(guests_count) ||
+                    guests_count <= 0
+                )
+            ) {
+
+                return res.status(400).json({
+                    error: "guests_count must be a positive integer"
+                });
+
+            };
+
+            if (
+                check_in !== undefined &&
+                check_in !== null &&
+                (
+                    !/^\d{4}-\d{2}-\d{2}$/.test(check_in) ||
+                    Number.isNaN(Date.parse(`${check_in}T00:00:00Z`)) ||
+                    new Date(`${check_in}T00:00:00Z`)
+                        .toISOString()
+                        .split("T")[0] !== check_in
+                )
+            ) {
+
+                return res.status(400).json({
+                    error: "Invalid check_in date"
+                });
+
+            };
+
+            if (
+                check_out !== undefined &&
+                check_out !== null &&
+                (
+                    !/^\d{4}-\d{2}-\d{2}$/.test(check_out) ||
+                    Number.isNaN(Date.parse(`${check_out}T00:00:00Z`)) ||
+                    new Date(`${check_out}T00:00:00Z`)
+                        .toISOString()
+                        .split("T")[0] !== check_out
+                )
+            ) {
+
+                return res.status(400).json({
+                    error: "Invalid check_out date"
+                });
+
+            };
+                
+            const existingInquiry =
+                await InquiryService.getInquiryById(
+                    req.app.get("db"),
+                    id
+                );
 
 
-            /*
-                PROTECT DATABASE-CONTROLLED FIELDS
-            */
-            delete updatedInquiry.id;
-            delete updatedInquiry.created_at;
-            delete updatedInquiry.updated_at;
+            if (!existingInquiry) {
 
-            let quote = null;
+                return res.status(404).json({
+                    error: "Inquiry not found"
+                });
+
+            };
+            
+            if (existingInquiry.status === "canceled") {
+
+                return res.status(409).json({
+                    error: "Canceled inquiries cannot be edited"
+                });
+
+            };
+            
+            const finalCheckIn =
+                check_in !== undefined
+                    ? check_in
+                    : existingInquiry.check_in;
+
+            const finalCheckOut =
+                check_out !== undefined
+                    ? check_out
+                    : existingInquiry.check_out;
+
+            if (
+                (finalCheckIn && !finalCheckOut) ||
+                (!finalCheckIn && finalCheckOut)
+            ) {
+
+                return res.status(400).json({
+                    error: "check_in and check_out must both be provided"
+                });
+
+            };
+
+            const quoteFieldsChanged =
+                property_id !== undefined ||
+                check_in !== undefined ||
+                check_out !== undefined ||
+                guests_count !== undefined;
+
+
+            if (quoteFieldsChanged) {
+                
+                const normalizeDate = date => {
+
+                    if (!date) {
+                        return date;
+                    }
+
+                    if (date instanceof Date) {
+                        return date.toISOString().split("T")[0];
+                    }
+
+                    return String(date).split("T")[0];
+
+                };
+
+                const quoteData = {
+
+                    property_id:
+                        property_id !== undefined
+                            ? property_id
+                            : existingInquiry.property_id,
+                    check_in:
+                    normalizeDate(
+                        check_in !== undefined
+                            ? check_in
+                            : existingInquiry.check_in
+                    ),
+                check_out:
+                    normalizeDate(
+                        check_out !== undefined
+                            ? check_out
+                            : existingInquiry.check_out
+                    ),
+                    guests_count:
+                        guests_count !== undefined
+                            ? guests_count
+                            : existingInquiry.guests_count
+                };
 
                 if (
-                    property_id &&
-                    check_in &&
-                    check_out &&
-                    guests_count
+                    quoteData.property_id &&
+                    quoteData.check_in &&
+                    quoteData.check_out &&
+                    quoteData.guests_count
                 ) {
 
                     const result =
                         await ReservationValidationService
                             .getReservationQuote(
                                 req.app.get("db"),
-                                {
-                                    property_id,
-                                    check_in,
-                                    check_out,
-                                    guests_count
-                                }
+                                quoteData
                             );
+
 
                     if (!result.valid) {
 
@@ -541,11 +711,31 @@ InquiryRouter
 
                     }
 
-                    quote = result.quote;
+
+                    updatedInquiry.quote =
+                        result.quote;
+
+                } else {
+
+                    updatedInquiry.quote =
+                        null;
 
                 }
-                
-            updatedInquiry.quote = quote;
+
+            }
+            
+            if (existingInquiry.status === "pending_confirmation") {
+
+                await InquiryService.deleteConfirmationTokensByInquiryId(
+                    req.app.get("db"),
+                    id
+                );
+
+                updatedInquiry.status = "new";
+                updatedInquiry.sent_at = null;
+                updatedInquiry.responded_at = null;
+
+            };
             
             InquiryService.updateInquiryById(
                 req.app.get("db"),
@@ -858,7 +1048,7 @@ InquiryRouter
                         phone: phone || null,
                         subject: subject || null,
                         message,
-                        quote: quote | null,
+                        quote: quote || null,
                         check_in: check_in || null,
                         check_out: check_out || null,
                         guests_count: guests_count || null,
@@ -913,7 +1103,6 @@ InquiryRouter
 
                 if (
                     inquiry.status === "confirmed" ||
-                    inquiry.status === "declined" ||
                     inquiry.status === "canceled"
                 ) {
 
@@ -982,7 +1171,7 @@ InquiryRouter
                                     inquiry.id,
                                     createdToken.id
                                 );
-                            console.log(token)
+                                
                             return InquiryService
                                 .updateInquiryStatus(
                                     trx,
@@ -1002,7 +1191,6 @@ InquiryRouter
                 return res.status(200).json({
 
                     inquiry: updatedInquiry,
-                    token,
                     message:
                         "Inquiry email accepted by email provider"
 
@@ -1141,14 +1329,17 @@ InquiryRouter
 
                 if (
                     decision !== "confirm" &&
-                    decision !== "decline"
+                    decision !== "cancel"
                 ) {
 
                     return res.status(400).json({
-                        error: "decision must be confirm or decline"
+
+                        error:
+                            "decision must be confirm or cancel"
+
                     });
 
-                }
+                };
 
                 const tokenHash =
                     InquiryTokenService.hashToken(
@@ -1202,7 +1393,7 @@ InquiryRouter
                             const status =
                                 decision === "confirm"
                                     ? "confirmed"
-                                    : "declined";
+                                    : "canceled";
 
                             const updatedInquiry =
                                 await InquiryService
@@ -1249,14 +1440,70 @@ InquiryRouter
 
                 };
                 
+                const updatedInquiry =
+                    result.updatedInquiry;
+
+
+                const customerName = [
+
+                    updatedInquiry.first_name,
+
+                    updatedInquiry.last_name
+
+                ]
+                    .filter(Boolean)
+                    .join(" ");
+
+
+                const newNotification = {
+
+                    type:
+                        updatedInquiry.status === "confirmed"
+                            ? "inquiry_confirmed"
+                            : "inquiry_canceled",
+
+                    title:
+                        updatedInquiry.status === "confirmed"
+                            ? "Inquiry Confirmed"
+                            : "Inquiry Canceled",
+
+                    message:
+                        updatedInquiry.status === "confirmed"
+                            ? `${customerName} confirmed their inquiry.`
+                            : `${customerName} canceled their inquiry.`,
+
+                    property_id:
+                        updatedInquiry.property_id,
+
+                    reservation_id:
+                        null,
+
+                    conversation_id:
+                        null,
+
+                    inquiry_id:
+                        updatedInquiry.id,
+
+                    is_read:
+                        false
+
+                };
+
+
+                await notificationService
+                    .createNotification(
+                        db,
+                        newNotification
+                    );
+                
                 return res.status(200).json({
 
-                    inquiry: result,
+                    inquiry: updatedInquiry,
 
                     message:
                         decision === "confirm"
                             ? "Inquiry confirmed"
-                            : "Inquiry declined"
+                            : "Inquiry canceled"
 
                 });
 
@@ -1350,16 +1597,22 @@ InquiryRouter
                             }
 
                             if (
-                                inquiry.status !== "confirmed"
+                                inquiry.status === "canceled"
                             ) {
 
                                 return {
                                     error:
-                                        "Only confirmed inquiries can be canceled",
+                                        "Inquiry is already canceled",
                                     status: 409
                                 };
 
                             }
+                            
+                            await InquiryService
+                                .deleteConfirmationTokensByInquiryId(
+                                    trx,
+                                    inquiry.id
+                                );
 
                             const updatedInquiry =
                                 await InquiryService

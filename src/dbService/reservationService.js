@@ -62,20 +62,8 @@ const ReservationService = {
             .returning("*")
             .then(([createdReservation]) => createdReservation);
     },
-
-    updateReservationById(db, updatedReservation, id) {
-        return db
-            .update({
-                ...updatedReservation,
-                updated_at: new Date()
-            })
-            .from("reservations")
-            .where({ id })
-            .returning("*")
-            .then(([updatedReservation]) => updatedReservation);
-    },
-
     cancelReservationById(db, cancellation_reason, id) {
+
         return db
             .update({
                 status: "cancelled",
@@ -85,8 +73,17 @@ const ReservationService = {
             })
             .from("reservations")
             .where({ id })
+            .whereIn("status", [
+                "pending",
+                "confirmed"
+            ])
             .returning("*")
-            .then(([cancelledReservation]) => cancelledReservation);
+            .then(([cancelledReservation]) => {
+
+                return cancelledReservation;
+
+            });
+
     },
     hasReservationsByPropertyId(db, property_id) {
         return db
