@@ -98,6 +98,17 @@ const ReservationService = {
             });
 
     },
+    updateReservationById(db, updatedReservation, id) {
+        return db
+            .update({
+                ...updatedReservation,
+                updated_at: new Date()
+            })
+            .from("reservations")
+            .where({ id })
+            .returning("*")
+            .then(([updatedReservation]) => updatedReservation);
+    }
 };
 
 module.exports = ReservationService;
