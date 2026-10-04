@@ -257,6 +257,54 @@ PaymentRouter
         }
     );
 
+/*
+    CONFIRM VERIFIED PAYMENT
+
+    TEMPORARY ADMIN / DEVELOPMENT ROUTE.
+
+    LATER THIS SERVICE SHOULD BE CALLED
+    AFTER STRIPE VERIFIES THE PAYMENT.
+*/
+PaymentRouter
+    .route("/:id/confirm")
+    .post(
+        requireAuth,
+        async (req, res, next) => {
+
+            try {
+
+                const { id } = req.params;
+
+                const result =
+                    await PaymentService.confirmVerifiedPayment(
+                        req.app.get("db"),
+                        id
+                    );
+
+
+                return res.status(200).json({
+                    payment: result.payment,
+                    reservation: result.reservation,
+                    alreadyConfirmed: result.alreadyConfirmed
+                });
+
+            } catch(error){
+
+                if(error.status){
+
+                    return res.status(error.status).json({
+                        error: error.message
+                    });
+
+                };
+
+
+                next(error);
+
+            };
+
+        }
+    );
 
 /*
     UPDATE PAYMENT

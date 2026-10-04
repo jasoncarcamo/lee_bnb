@@ -4,6 +4,8 @@ const ReservationRouter = express.Router();
 const ReservationService = require("../dbService/reservationService");
 const ReservationValidationService = require("../dbService/reservationValidationService");
 const { requireAuth } = require("../middleware/jwtAuth");
+const RefundService = require("../dbService/refundService");
+const PaymentService = require("../dbService/paymentService");
 const notificationService = require("../dbService/notificationService");
 
 
@@ -297,6 +299,7 @@ ReservationRouter
         (req, res, next) => {
 
             const {
+                inquiry_id,
                 property_id,
                 guest_id,
                 check_in,
@@ -307,6 +310,7 @@ ReservationRouter
 
 
             const reservationData = {
+                inquiry_id: inquiry_id || null,
                 property_id,
                 guest_id,
                 check_in,
@@ -447,50 +451,24 @@ ReservationRouter
 
 
                                                     const newReservation = {
-
+                                                        inquiry_id,
                                                         property_id,
-
                                                         guest_id,
-
                                                         confirmation_code:
                                                             confirmationCode,
-
                                                         check_in,
-
                                                         check_out,
-
                                                         guests_count,
-
-                                                        nights:
-                                                            pricingResult.nights,
-
-                                                        nightly_subtotal:
-                                                            total.nightly_subtotal,
-
-                                                        cleaning_fee:
-                                                            total.cleaning_fee,
-
-                                                        service_fee:
-                                                            total.service_fee,
-
-                                                        taxes:
-                                                            total.taxes,
-
-                                                        discount:
-                                                            total.discount,
-
-                                                        total_price:
-                                                            total.total_price,
-
-                                                        currency:
-                                                            property.currency,
-
-                                                        status:
-                                                            "pending",
-
-                                                        special_requests:
-                                                            special_requests || null
-
+                                                        nights: pricingResult.nights,
+                                                        nightly_subtotal: total.nightly_subtotal,
+                                                        cleaning_fee: total.cleaning_fee,
+                                                        service_fee: total.service_fee,
+                                                        taxes: total.taxes,
+                                                        discount: total.discount,
+                                                        total_price: total.total_price,
+                                                        currency: property.currency,
+                                                        status: "pending",
+                                                        special_requests: special_requests || null
                                                     };
 
 
@@ -513,9 +491,9 @@ ReservationRouter
                                                                 conversation_id:
                                                                     null,
                                                                 inquiry_id:
-                                                                    null,
+                                                                    reservation.inquiry_id,
                                                                 is_read:
-                                                                    false
+                                                                    false,
                                                             };
 
 
@@ -785,5 +763,406 @@ ReservationRouter
         }
     );
 
+/*
+    CANCEL RESERVATION
+    + REFUND REMAINING PAYMENT BALANCE
+*/
+ReservationRouter
+    .route("/:id/cancel-and-refund")
+    .post(
+        requireAuth,
+        express.json(),
+        (req, res, next) => {
+
+            const { id } = req.params;
+
+            const {
+                cancellation_reason
+            } = req.body;
+
+
+            /*
+                VALIDATE CANCELLATION REASON
+            */
+            if(
+                typeof cancellation_reason !== "string" ||
+                !cancellation_reason.trim()
+            ){
+
+                return res.status(400).json({
+                    error:
+                        "Cancellation reason is required"
+                });
+
+            };
+
+
+            const db =
+                req.app.get("db");
+
+
+            /*
+                RESERVATION CANCELLATION
+                + REMAINING REFUND
+
+                ALL DATABASE CHANGES ARE MADE
+                IN ONE TRANSACTION.
+            */
+            db.transaction(async trx => {
+
+                /*
+                    LOCK RESERVATION
+                */
+                const reservation =
+                    await trx("reservations")
+                        .where({
+                            id
+                        })
+                        .forUpdate()
+                        .first();
+
+
+                if(!reservation){
+
+                    return {
+                        status: 404,
+
+                        body: {
+                            error:
+                                "Reservation not found"
+                        }
+                    };
+
+                };
+
+
+                /*
+                    ONLY PENDING / CONFIRMED
+                    RESERVATIONS CAN BE CANCELLED
+                */
+                if(
+                    ![
+                        "pending",
+                        "confirmed"
+                    ].includes(
+                        reservation.status
+                    )
+                ){
+
+                    return {
+                        status: 409,
+
+                        body: {
+                            error:
+                                `Cannot cancel a reservation with status "${reservation.status}"`
+                        }
+                    };
+
+                };
+
+
+                /*
+                    FIND THE PAYMENT ASSOCIATED
+                    WITH THIS RESERVATION.
+
+                    PREFER A PAYMENT THAT HAS
+                    ACTUALLY BEEN PAID.
+                */
+                const payment =
+                    await trx("payments")
+                        .where({
+                            reservation_id:
+                                reservation.id
+                        })
+                        .whereIn(
+                            "status",
+                            [
+                                "paid",
+                                "partially_refunded",
+                                "refunded"
+                            ]
+                        )
+                        .orderBy(
+                            "created_at",
+                            "desc"
+                        )
+                        .forUpdate()
+                        .first();
+
+
+                let refund = null;
+
+                let updatedPayment =
+                    payment || null;
+
+
+                /*
+                    IF THERE IS A PAID PAYMENT,
+                    CALCULATE ITS REMAINING
+                    REFUNDABLE BALANCE.
+                */
+                if(payment){
+
+                    const refunds =
+                        await RefundService
+                            .getRefundsByPaymentId(
+                                trx,
+                                payment.id
+                            );
+
+
+                    const refundedCents =
+                        refunds.reduce(
+                            (
+                                total,
+                                existingRefund
+                            ) => {
+
+                                return total +
+                                    Math.round(
+                                        Number(
+                                            existingRefund
+                                                .amount
+                                        ) * 100
+                                    );
+
+                            },
+                            0
+                        );
+
+
+                    const paymentAmountCents =
+                        Math.round(
+                            Number(
+                                payment.amount
+                            ) * 100
+                        );
+
+
+                    const remainingCents =
+                        paymentAmountCents -
+                        refundedCents;
+
+
+                    /*
+                        DATABASE DATA SHOULD NEVER
+                        HAVE MORE REFUNDED THAN THE
+                        ORIGINAL PAYMENT.
+                    */
+                    if(remainingCents < 0){
+
+                        const error =
+                            new Error(
+                                "Refund total exceeds payment amount"
+                            );
+
+                        error.status = 409;
+
+                        throw error;
+
+                    };
+
+
+                    /*
+                        REFUND ONLY THE REMAINING
+                        BALANCE.
+
+                        EXAMPLE:
+
+                        Payment:         $648
+                        Already refund:  $100
+                        Remaining:       $548
+                    */
+                    if(remainingCents > 0){
+
+                        const newRefund = {
+
+                            payment_id:
+                                payment.id,
+
+                            amount:
+                                (
+                                    remainingCents /
+                                    100
+                                ).toFixed(2),
+
+                            reason:
+                                cancellation_reason
+                                    .trim(),
+
+                            provider_refund_id:
+                                null
+
+                        };
+
+
+                        refund =
+                            await RefundService
+                                .createRefund(
+                                    trx,
+                                    newRefund
+                                );
+
+                    };
+
+
+                    /*
+                        AFTER THIS OPERATION THE
+                        PAYMENT HAS NO REMAINING
+                        REFUNDABLE BALANCE.
+                    */
+                    updatedPayment =
+                        await PaymentService
+                            .updatePaymentById(
+                                trx,
+                                {
+                                    status:
+                                        "refunded",
+
+                                    refunded_at:
+                                        payment.refunded_at ||
+                                        new Date()
+                                },
+                                payment.id
+                            );
+
+                };
+
+
+                /*
+                    CANCEL RESERVATION
+                */
+                const cancelledReservation =
+                    await ReservationService
+                        .cancelReservationById(
+                            trx,
+                            cancellation_reason
+                                .trim(),
+                            reservation.id
+                        );
+
+
+                if(!cancelledReservation){
+
+                    const error =
+                        new Error(
+                            "Reservation could not be cancelled"
+                        );
+
+                    error.status = 409;
+
+                    throw error;
+
+                };
+
+
+                return {
+
+                    status: 200,
+
+                    body: {
+
+                        reservation:
+                            cancelledReservation,
+
+                        payment:
+                            updatedPayment,
+
+                        refund
+
+                    }
+
+                };
+
+            })
+                .then(async result => {
+
+                    /*
+                        DATABASE TRANSACTION HAS
+                        SUCCEEDED.
+
+                        NOW UPDATE THE ADMIN
+                        NOTIFICATION.
+                    */
+                    if(
+                        result.status === 200 &&
+                        result.body.reservation
+                    ){
+
+                        const reservation =
+                            result.body.reservation;
+
+
+                        const newNotification = {
+
+                            type:
+                                "reservation_cancelled",
+
+                            title:
+                                "Reservation Cancelled",
+
+                            message:
+                                `Reservation ${reservation.confirmation_code} was cancelled.`,
+
+                            property_id:
+                                reservation.property_id,
+
+                            reservation_id:
+                                reservation.id,
+
+                            conversation_id:
+                                null,
+
+                            inquiry_id:
+                                null,
+
+                            is_read:
+                                false
+
+                        };
+
+
+                        await notificationService
+                            .deleteNotificationByReservationIdAndType(
+                                db,
+                                reservation.id,
+                                "new_reservation"
+                            );
+
+
+                        await notificationService
+                            .createNotification(
+                                db,
+                                newNotification
+                            );
+
+                    };
+
+
+                    return res
+                        .status(result.status)
+                        .json(result.body);
+
+                })
+                .catch(error => {
+
+                    if(error.status){
+
+                        return res
+                            .status(error.status)
+                            .json({
+                                error:
+                                    error.message
+                            });
+
+                    };
+
+
+                    next(error);
+
+                });
+
+        }
+    );
 
 module.exports = ReservationRouter;

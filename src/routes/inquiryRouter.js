@@ -1187,10 +1187,11 @@ InquiryRouter
 
                         }
                     );
-
+                    
                 return res.status(200).json({
 
                     inquiry: updatedInquiry,
+                    emailToekn: token,
                     message:
                         "Inquiry email accepted by email provider"
 
