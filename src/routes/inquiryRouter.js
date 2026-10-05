@@ -169,7 +169,8 @@ InquiryRouter
                 message,
                 check_in,
                 check_out,
-                guests_count
+                guests_count,
+                guest_id
             } = req.body;
 
 
@@ -203,10 +204,10 @@ InquiryRouter
                     guests_count || null,
 
                 status:
-                    "new"
-
+                    "new",
+                guest_id: guest_id || null
             };
-
+            console.log(guest_id)
 
             const requiredFields = [
                 "first_name",

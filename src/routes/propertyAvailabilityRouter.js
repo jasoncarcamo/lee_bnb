@@ -203,7 +203,6 @@ PropertyAvailabilityRouter
                 date
             } = req.params;
 
-
             const updatedAvailability = req.body;
 
 

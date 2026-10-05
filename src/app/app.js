@@ -27,6 +27,7 @@ const inquiryRouter = require("../routes/inquiryRouter");
 const reviewRouter = require("../routes/reviewRouter");
 const notificationRouter = require("../routes/notificatonsRouter");
 const passwordResetRouter = require("../routes/passwordResetRouter");
+const GuestAuthRouter = require("../routes/GuestAuthRouter");
 
 app.use(morgan("tiny"));
 app.use(cors());
@@ -34,6 +35,8 @@ app.use(helmet());
 
 app.use("/api", registerRouter);
 app.use("/api", loginRouter);
+
+app.use("/api/guest-auth", GuestAuthRouter);
 
 app.use("/api/properties", propertyRouter);
 app.use("/api/property-photos", propertyPhotoRouter);

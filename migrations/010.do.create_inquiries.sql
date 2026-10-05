@@ -69,6 +69,6 @@ CREATE TABLE inquiries (
         CHECK (
             guests_count IS NULL
             OR guests_count > 0
-        )
-
+        ),
+    guest_id UUID 
 );

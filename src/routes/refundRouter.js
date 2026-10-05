@@ -190,7 +190,6 @@ RefundRouter
 
                 };
 
-
                 /*
                     PAYMENT MUST HAVE BEEN PAID.
 
@@ -220,7 +219,6 @@ RefundRouter
 
                 };
 
-
                 /*
                     LOAD EXISTING REFUNDS WHILE
                     THE PAYMENT ROW IS LOCKED.
@@ -230,7 +228,6 @@ RefundRouter
                         trx,
                         payment_id
                     );
-
 
                 /*
                     CALCULATE ALL AMOUNTS IN CENTS
@@ -249,12 +246,10 @@ RefundRouter
                         0
                     );
 
-
                 const paymentAmountCents =
                     Math.round(
                         Number(payment.amount) * 100
                     );
-
 
                 const remainingCents =
                     paymentAmountCents -

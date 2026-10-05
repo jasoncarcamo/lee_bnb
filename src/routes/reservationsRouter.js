@@ -227,7 +227,6 @@ ReservationRouter
 ReservationRouter
     .route("/property/:property_id/dates")
     .get(
-        requireAuth,
         (req, res, next) => {
 
             const { property_id } = req.params;
@@ -318,6 +317,8 @@ ReservationRouter
                 guests_count,
                 special_requests
             };
+            
+            console.log(guest_id)
 
 
             ReservationValidationService
@@ -339,7 +340,7 @@ ReservationRouter
                     const property =
                         propertyResult.property;
 
-
+                    console.log(guest_id)
                     return ReservationValidationService
                         .validateGuest(
                             req.app.get("db"),
@@ -495,7 +496,6 @@ ReservationRouter
                                                                 is_read:
                                                                     false,
                                                             };
-
 
                                                             return notificationService
                                                                 .createNotification(
